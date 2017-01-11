@@ -343,14 +343,6 @@ public abstract class CellPin implements Serializable {
 	public abstract List<String> getPossibleBelPinNames(BelId belId);  
 	
 	/**
-	 * Returns the backing {@link LibraryPin} of this CellPin. If the caller is a
-	 * pseudo cell pin, <code>null</code> is returned because it has no backing
-	 * {@code LibraryPin}.
-	 * @return the backing LibraryPin for this pin
-	 */
-	public abstract LibraryPin getLibraryPin();  
-	
-	/**
 	 * Returns the {@link CellPinType} of this pin.
 	 * @return the type of this pin.
 	 */

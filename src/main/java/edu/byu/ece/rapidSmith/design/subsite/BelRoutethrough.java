@@ -23,23 +23,29 @@ package edu.byu.ece.rapidSmith.design.subsite;
 import edu.byu.ece.rapidSmith.device.Bel;
 import edu.byu.ece.rapidSmith.device.BelPin;
 import edu.byu.ece.rapidSmith.device.Wire;
+import edu.byu.ece.rapidSmith.interfaces.vivado.TincrCheckpoint;
+
 import static edu.byu.ece.rapidSmith.util.Exceptions.DesignAssemblyException;
 
 import java.util.Objects;
 
 /**
  * <p>
- * Represents a routethrough passing through a {@link Bel}.
+ * Represents a routethrough passing through a BEL.
  * </p><p>
- * Some Bels can be configured such that they act as a wire allowing for greater
- * flexibility in the design.  In this case, the Bel is unused, but a connection from
- * an input pin to an output pin on the Bel is presented.  This class describes the
- * routethrough connection.
+ * Some BELs can be configured to act as a wire.  When configured this way, the
+ * connection from the input pin to the output pin of the BEL is treated as a PIP and
+ * the BEL is disabled.  These routethrough objects allow for greater routing
+ * flexibility in the sites.
  * </p><p>
- * A BelRoutethrough is represented by an input {@link BelPin pin} and an output pin
- * on a Bel.  This class provides no validation that the provided pins can be used as a
- * routethrough.
+ * {@code BelRoutethrough} objects are used in the Tincr checkpoint files and have
+ * properties that require special handling.  A {@code BelRoutethrough} object is
+ * described by an input and an output {@code BelPin} that together form the source
+ * and the sink of the routethrough.  These BEL pins should reside on the same BEL.
  * </p>
+ * @see Bel
+ * @see BelPin
+ * @see TincrCheckpoint
  */
 // TODO: Update this to include the sink cell pin that it leads to?
 public class BelRoutethrough {
@@ -50,14 +56,16 @@ public class BelRoutethrough {
 	private final BelPin outputPin;
 
 	/**
-	 * Constructs a new BelRoutheThrough on the provided Bel with the provided input
-	 * and output pins.
+	 * Constructs a new {@code BelRoutethrough} instance representing a routethrough
+	 * connecting {@code inputPin} to {@code outputPin}.
 	 *
-	 * @param inputPin the pin this routethrough enters through (A1 - A6 pins on a LUT typically)
-	 * @param outputPin the pin this routethrough exits through (O5 or O6 pin on a LUT typically)
-	 * @throws NullPointerException if any argument is null
-	 * @throws DesignAssemblyException if inputPin and outputPin are on different bels
-	 */public BelRoutethrough( BelPin inputPin, BelPin outputPin) {Objects.requireNonNull(bel);
+	 * @param inputPin the pin this routethrough enters through
+	 *                    (typically the A1 - A6 pins on a LUT)
+	 * @param outputPin the pin this routethrough exits through
+	 *                     (typically the O5 or O6 pin on a LUT)
+	 * @throws NullPointerException if a {@code null} argument is passed
+	 * @throws DesignAssemblyException if the input and output pins are on different BELs
+	 */public BelRoutethrough( BelPin inputPin, BelPin outputPin) {
 		// Reject null objects
 		Objects.requireNonNull(inputPin);
 		Objects.requireNonNull(outputPin);
@@ -71,31 +79,35 @@ public class BelRoutethrough {
 
 	/**
 	 * Returns the {@link Bel} this routethrough passes through.
-	 * @return the Bel this routhethrough passes through
+	 * @return the {@code Bel} this routhethrough passes through
 	 */
 	public Bel getBel() {
 		return this.inputPin.getBel();
 	}
 
 	/**
-	 * Returns the {@link BelPin} through which this routethrough enters the Bel.
-	 * @return the input pin on the Bel for this routethrough
+	 * Returns the {@link BelPin} this routethrough enters through (typically the
+	 * A1 - A6 pins on a LUT).
+	 * @return the {@code BelPin} this routethrough enters through
 	 */
 	public BelPin getInputPin() {
 		return this.inputPin;
 	}
 
 	/**
-	 * Returns the {@link BelPin} through which this routethrough exits the Bel.
-	 * @return the output pin on the Bel for this routethrough
+	 * Returns the {@link BelPin} this routethrough exits through (typically the
+	 * O5 or O6 pins on a LUT).
+	 * @return the {@code BelPin} this routethrough enters through
 	 */
 	public BelPin getOutputPin() {
 		return this.outputPin;
 	}
 
 	/**
-	 * Returns the {@link Wire} connected to the output pin on this routethrough.
-	 * @return the wire connected to the output pin on this routethrough
+	 * Returns the {@link Wire} this routethrough exits on.  This is the wire
+	 * the output pin connects to.
+	 * @return the {@code BelPin} this routethrough enters through
+	 * @see #getOutputPin()
 	 */
 	public Wire getOutputWire() {
 		return outputPin.getWire();

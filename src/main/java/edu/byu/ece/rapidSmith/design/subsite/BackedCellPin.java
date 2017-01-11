@@ -30,8 +30,23 @@ import edu.byu.ece.rapidSmith.device.BelPin;
 import edu.byu.ece.rapidSmith.device.PinDirection;
 
 /**
- *  A CellPin that is "backed" by a {@link LibraryPin}. This means the pin is a
- *  a standard pin associated with a {@link LibraryCell}.
+ * <p>
+ * A {@code CellPin} that is "backed" by a {@code LibraryPin}.  {@code BackedCellPin}
+ * represents cell pins that serve as functional inputs and outputs of the cell.
+ * </p><p>
+ * Instances of {@code BackedCellPin} are automatically created upon the creation
+ * of a new cell object.  Users do not create instances of {@code BackedCellPin}.
+ * Instead, the cell pin objects are obtained through calls to {@link Cell#getPins()}.
+ * </p><p>
+ * As indicated by the name, instances of {@code BackedCellPin} are backed by a
+ * {@code LibraryPin}.  This backing object defines the name, direction,
+ * type and possible BEL pins locations for the pin.  All of this information is
+ * exposed through the methods in the {@code CellPin} class and the user should not
+ * need to obtain the backing {@code LibraryPin} object.
+ * </p>
+ * @see LibraryPin
+ * @see BelPin
+ * @see Cell
  */
 public final class BackedCellPin extends CellPin {
 
@@ -72,6 +87,11 @@ public final class BackedCellPin extends CellPin {
 		return libraryPin.getDirection();
 	}
 
+	/**
+	 * Returns {@code false} -- {@code BackedCellPin} objects are never pseudo pins.
+	 * {@inheritDoc}
+	 * @return {@code false}
+	 */
 	@Override
 	public boolean isPseudoPin() {
 		return false;
@@ -105,7 +125,11 @@ public final class BackedCellPin extends CellPin {
 		return libraryPin.getPossibleBelPins().getOrDefault(belId, Collections.emptyList());
 	}
 
-	@Override
+	/**
+	 * Returns the {@code LibraryPin} backing this pin.  This method is provided
+	 * to give users access to the lower level RS data structures.
+	 * @return the {@code LibraryPin} backing this pin
+	 */
 	public LibraryPin getLibraryPin() {
 		return libraryPin;
 	}

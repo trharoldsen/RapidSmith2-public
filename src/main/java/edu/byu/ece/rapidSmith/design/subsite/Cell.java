@@ -32,20 +32,27 @@ import java.util.stream.Collectors;
 
 /**
  * <p>
- * Cells represent a primitive logical element in a {@link CellDesign}.  In general,
- * a cell is logical unit that can be placed onto a single {@link Bel} on the device.
+ * The {@code Cell} class represents the primitive logical elements in a
+ * {@link CellDesign}.  Cells connect to the nets in a design through a collection of
+ * {@link CellPin CellPins} and act as the computational and memory units in a netlist.
  * </p><p>
- * Each cell in a design contains a unique name and is backed by a {@link LibraryCell}
- * which defines the characteristics of the cell.  These properties are immutable.  The
- * backing {@code LibraryCell} defines which {@code Bel}s in the device the cell can be
- * placed on.  It also defines a number of pins for the cell which are initialized when
- * the cell is created.
+ * Cells in a design can be placed onto {@link Bel Bels} on the device.  Most cells have
+ * a one-to-one mapping between cell @code{->} BEL.  Special hierarchical <tt>macro</tt>
+ * cells may occupy multiple LUTs.  Macros are currently not supported in RS.
  * </p><p>
- * In addition to the pins defined by the {@code LibraryCell}, a cell may also contain
- * {@link PseudoCellPin}s -- special pins that don't exist on the cell but which relate
- * to a {@link edu.byu.ece.rapidSmith.device.BelPin} that needs to be driven by a source.
- * The cell also contains a collection of properties describing how the cell is
- * configued.
+ * Placing a cell is accomplished with the {@link CellDesign#placeCell(Cell, Bel)} method.
+ * Valid locations within a device for a cell can be obtained by calling
+ * {@link #getPossibleAnchors()}.
+ * </p><p>
+ * Each cells is backed by a {@link LibraryCell} which defines the properties and
+ * operations of the cell.  The {@code LibraryCell} is provided at creation and is
+ * immutable.
+ * </p><p>
+ * A cells connects to the rest of the netlist through a group of {@code CellPins}.
+ * Most of these pins are defined by the backing {@code LibraryCell} and are created
+ * upon instantiation of the cell.  Special {@link PseudoCellPin pseudo pins} may also
+ * be added to the cell by the user in cases where no pin on the cell is mapped to a
+ * BEL pin which needs to be connected to the outer device.
  * </p>
  */
 public class Cell {
@@ -67,7 +74,7 @@ public class Cell {
 	private Set<CellPin> pseudoPins;
 
 	/**
-	 * Creates a new cell with specified name and backing {@link LibraryCell}.  The
+	 * Creates a new cell with name {@code name} and backed by {@code libCell}.  The
 	 * pins from the backing {@code LibraryCell} are also created and added to the cell
 	 * at this time.
 	 *
