@@ -30,27 +30,23 @@ import edu.byu.ece.rapidSmith.device.BelPin;
 import edu.byu.ece.rapidSmith.device.PinDirection;
 
 /**
- *  A CellPin that is "backed" by a {@link LibraryPin}. This means they represent 
- *  an instance of a {@link LibraryPin} on a {@link LibraryCell}. 
- *  
- * @author Travis Haroldsen
- * @author Thomas Townsend
- *
+ *  A CellPin that is "backed" by a {@link LibraryPin}. This means the pin is a
+ *  a standard pin associated with a {@link LibraryCell}.
  */
-public class BackedCellPin extends CellPin {
+public final class BackedCellPin extends CellPin {
 
 	/** Unique serial number for class */
 	private static final long serialVersionUID = 3866278951715319836L;
 	/** LibraryPin forming the basis of this pin */
-	private LibraryPin libraryPin;
+	private final LibraryPin libraryPin;
 	
 	/**
-	 * Package Private Constructor for BackedCellPin objects. This
-	 * constructor should only be called by {@link Cell} while creating
+	 * Package Private Constructor for BackedCellPin objects.  This
+	 * constructor is called by {@link Cell} while creating
 	 * the pins of the cell.
 	 * 
-	 * @param cell Parent cell of this pin
-	 * @param libraryPin Backed {@link LibraryPin} of this pin
+	 * @param cell cell this pin is on
+	 * @param libraryPin the {@link LibraryPin} backing this pin
 	 */
 	BackedCellPin(Cell cell, LibraryPin libraryPin) {
 		super(cell);

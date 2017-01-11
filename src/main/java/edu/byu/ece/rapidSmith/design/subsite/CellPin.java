@@ -33,12 +33,17 @@ import edu.byu.ece.rapidSmith.device.BelPin;
 import edu.byu.ece.rapidSmith.device.PinDirection;
 
 /**
- *  A pin on a Cell. CellPins connect cells to nets and map to BelPins.
- *  CellPins are obtained through calls to {@link Cell#getPin(String)}.
- *  
- *  @author Travis Haroldsen
- *  @author Thomas Townsend 
- *
+ * <p>
+ * A pin on a {@link Cell}.  {@code CellPin}s connect cells to nets and map to BelPins.
+ * CellPins are obtained through calls to {@link Cell#getPin(String)}.
+ * </p><p>
+ * There are two types of {@code CellPin}s -- {@link PseudoCellPin}s and
+ * {@link BackedCellPin}s.  {@code BackedCellPin}s are pins that exist as part of
+ * a cell, are described and back by a {@link LibraryPin}, and are created as when a
+ * cell is created.  {@code PseudoCellPin}s are special pins that provide a logical
+ * mapping for a {@code BelPin} that must be sourced but is not used by any of the
+ * {@code BackedCellPin}s of the {@code Cell}.
+ * </p>
  */
 public abstract class CellPin implements Serializable {
  
@@ -52,28 +57,27 @@ public abstract class CellPin implements Serializable {
 	private Set<BelPin> belPinMappingSet;
 
 	/**
-	 * Protected Constructor to create a new CellPin
+	 * A package private constructor to create a new CellPin
 	 * 
-	 * @param cell Parent cell of the CellPin. Can be <code>null</code>
-	 * 				if the cell is an unattached pseudo pin 
+	 * @param cell parent cell of the CellPin. Can be <code>null</code>
+	 * 				if the cell is an unattached pseudo pin .
 	 */
-	protected CellPin(Cell cell) {
+	CellPin(Cell cell) {
 		this.cell = cell;
 	}
 	
 	/**
-	 * Gets and returns the cell where this pin resides.
+	 * Returns the cell where this pin resides.
 	 *
-	 * @return The cell where the pin resides.
+	 * @return the cell where the pin resides.
 	 */
 	public Cell getCell() {
 		return cell;
 	}
 
 	/**
-	 * Sets the {@link Cell} that this pin is attached to. This is package 
-	 * private, and should not be called by regular users.
-	 * 
+	 * Sets the {@link Cell} that this pin is attached to.
+	 *
 	 * @param inst {@link Cell} to mark as the parent of this pin
 	 */
 	void setCell(Cell inst) {
@@ -81,49 +85,48 @@ public abstract class CellPin implements Serializable {
 	}
 
 	/**
-	 * Unattaches this pin from the {@link Cell} is was attached to. This
-	 * is package private, and should not be called by regular users
+	 * Detaches this pin from the {@link Cell} it is was attached to.
 	 */
 	void clearCell() {
 		this.cell = null;
 	}
 
 	/**
-	 * @return <code>true</code> is this CellPin is attached to a net
+	 * Returns whether this pin is connected to a net.
+	 * @return true is this CellPin is attached to a net, else false
 	 */
 	public boolean isConnectedToNet() {
 		return net != null;
 	}
 
 	/**
-	 * @return the net attached to this pin
+	 * Returns the net this pin is connected to.
+	 * @return the net attached to this pin or null if this pin is not connected
 	 */
 	public CellNet getNet() {
 		return net;
 	}
 
 	/**
-	 * Sets the {@link CellNet} object that this CellPin is
-	 * connected to. This call is package private and should
-	 * not be used by regular users.
+	 * Sets the {@link CellNet} that this pin is connected to.
 	 * 
-	 * @param net {@link CellNet} to connect the CellPin to.
+	 * @param net {@code CellNet} to connect the pin to.
 	 */
 	void setNet(CellNet net) {
 		this.net = net;
 	}
 
 	/**
-	 * Disconnects this pin from the net is was connected to. This
-	 * is package private and should not be called by regular users.
+	 * Disconnects this pin from the net is was connected to.
 	 */
 	void clearNet() {
 		this.net = null;
 	}
 	
 	/**
-	 * @return <code>true</code> if the pin is an input (either INPUT or INOUT)
-	 * to the cell. <code>false</code> otherwise.
+	 * Returns whether this pin is an input pin.  A pin is an input pin if its
+	 * {@link PinDirection direction} is {@code IN} or {@code INOUT}.
+	 * @return true if this pin is an input pin
 	 */
 	public boolean isInpin() {
 		switch (getDirection()) {
@@ -136,8 +139,9 @@ public abstract class CellPin implements Serializable {
 	}
 
 	/**
-	 * @return <code>true</code> if the pin is an output (either OUTPUT or INOUT)
-	 * to the cell. <code>false</code> otherwise.
+	 * Returns whether this pin is an output pin.  A pin is an output pin if its
+	 * {@link PinDirection direction} is {@code OUT} or {@code INOUT}.
+	 * @return true if this pin is an output pin
 	 */
 	public boolean isOutpin(){
 		switch (getDirection()) {
@@ -150,10 +154,10 @@ public abstract class CellPin implements Serializable {
 	}
 	
 	/**
-	 * Maps the CellPin to the specified BelPin
+	 * Maps this pin to the specified {@code BelPin}.
 	 * 
-	 * @param pin BelPin to map this CellPin to 
-	 * @return <code>true</code> if the CellPin is not already mapped to the BelPin 
+	 * @param pin the BelPin to map this pin to
+	 * @return true if the CellPin is not already mapped to the BelPin, else false
 	 */
 	public boolean mapToBelPin(BelPin pin) {
 		
@@ -165,10 +169,10 @@ public abstract class CellPin implements Serializable {
 	}
 	
 	/**
-	 * Maps the CellPin to all BelPins in the specified collection
+	 * Maps the CellPin to all BelPins in the specified collection.
 	 *  
 	 * @param pins Collection of BelPins to map BelPins to. 
-	 * @return <code>true</code> if all BelPins in "pins" have not already been mapped to the CellPin
+	 * @return <code>true</code> if all BelPins in {@code pins} have not already been mapped to the CellPin
 	 */
 	public boolean mapToBelPins(Collection<BelPin> pins) {
 		
@@ -181,10 +185,10 @@ public abstract class CellPin implements Serializable {
 	}
 	
 	/**
-	 * Tests if the mapping from this pin to the specified BelPin exists
+	 * Tests if this pin is mapped to the specified BelPin.
 	 * 
-	 * @param pin BelPin to test mapping
-	 * @return <code>true</code> if the mapping {@code this} -> {@code pin} exists
+	 * @param pin the BelPin to test against
+	 * @return <code>true</code> if the mapping {@code this} -&gt; {@code pin} exists
 	 */
 	public boolean isMappedTo(BelPin pin) {
 		return belPinMappingSet != null && belPinMappingSet.contains(pin);
@@ -192,29 +196,29 @@ public abstract class CellPin implements Serializable {
 	}
 	
 	/**
-	 * Tests to see if the pin has been mapped to a BelPin
+	 * Tests to see if this pin has been mapped to a BelPin.
 	 * 
-	 * @return <code>true</code> if this pin is mapped to at least one BelPin.
+	 * @return true if this pin is mapped to at least one BelPin, else false
 	 */
 	public boolean isMapped() {
 		return belPinMappingSet != null && !belPinMappingSet.isEmpty();
 	}
 	
 	/**
-	 * Returns a set of BelPins that this CellPin is currently mapped to.
-	 * If the CellPin is not mapped to any BelPins, and empty set is returned. 
+	 * Returns the BelPins this CellPin is currently mapped to.
+	 * @return a set of the {@code BelPin}s this pin is mapped to
 	 */
 	public Set<BelPin> getMappedBelPins() {
 		return (belPinMappingSet == null) ? Collections.emptySet() : Collections.unmodifiableSet(belPinMappingSet); 
 	}
 	
 	/**
-	 * Get the BelPin that this CellPin currently maps to. Use this function
+	 * Returns the BelPin that this CellPin currently maps to. Use this function
 	 * if you know that the CellPin is currently mapped to only one BelPin, otherwise
 	 * use {@link #getMappedBelPins()} instead.
 	 * 
-	 * @return The BelPin that this CellPin is mapped to. If the CellPin
-	 * is not mapped, <code>null</code> is returned. 
+	 * @return the BelPin that this CellPin is mapped to or null if the CellPin
+	 * is not mapped to any BelPins
 	 */
 	public BelPin getMappedBelPin() {
 		if (belPinMappingSet == null || belPinMappingSet.isEmpty()) {
@@ -226,18 +230,18 @@ public abstract class CellPin implements Serializable {
 	}
 	
 	/**
-	 * Get the number of BelPins that this pin is mapped to. In most cases,
+	 * Returns the number of BelPins that this pin is mapped to. In most cases,
 	 * CellPins are mapped to only one BelPin, but it is possible that they can
 	 * be mapped to 0 or more than 1 BelPins. 
 	 * 
-	 *  @return The number of mapped BelPins
+	 *  @return the number of BelPins this pin is mapped to
 	 */
 	public int getMappedBelPinCount() {
 		return belPinMappingSet == null ? 0 : belPinMappingSet.size();
 	}
 	
 	/**
-	 * Removes all CellPin -> BelPin mappings for this pin (i.e. this
+	 * Clears this CellPin -&gt; BelPins mappings for this pin (i.e. this
 	 * pin will no longer map to any BelPins). 
 	 */
 	public void clearPinMappings() {
@@ -249,7 +253,7 @@ public abstract class CellPin implements Serializable {
 	/**
 	 * Removes the pin mapping to the specified BelPin
 	 * 
-	 * @param belPin BelPin to un-map
+	 * @param belPin the BelPin to un-map
 	 */
 	public void clearPinMapping(BelPin belPin) {
 		if (belPinMappingSet != null && belPinMappingSet.contains(belPin)) {
@@ -271,22 +275,27 @@ public abstract class CellPin implements Serializable {
 	 * **************************************************************/
 	
 	/**
+	 * Returns the name of this pin.
 	 * @return the name of this pin
 	 */
 	public abstract String getName();
 	
 	/**
+	 * Returns the full name of this pin in the form "cellName/pinName"
 	 * @return the full name of the CellPin in the form "cellName/pinName"
 	 */
 	public abstract String getFullName();
 
 	/**
-	 * @return the direction of this pin from the cell's perspective
+	 * Returns the {@link PinDirection direction} of this pin.  This direction is
+	 * from the perspective of outside the cell.
+	 * @return the direction of this pin
 	 */
 	public abstract PinDirection getDirection();  
 	
-	/** 
-	 * @return <code>true</code> if the pin is a pseudo pin. <code>false</code> otherwise.
+	/**
+	 * Returns true if this pin is a {@link PseudoCellPin pseudo pin}.
+	 * @return true if the pin is a pseudo pin, else false
 	 */
 	public abstract boolean isPseudoPin(); 
 	
@@ -326,21 +335,24 @@ public abstract class CellPin implements Serializable {
 	 * Returns the names of the BelPins that this pin can potentially be mapped onto.
 	 * This function should NOT be called if the CellPin is a pseudo CellPin because 
 	 * pseudo pins are not backed by an associated {@link LibraryPin}.
-	 * 
+	 *
+	 * @param belId the type of BEL this pin's cell is placed on
 	 * @return list of names of possible BelPins (which could be empty). If the caller is a pseudo pin, 
 	 * 			<code>null</code> is returned
 	 */
 	public abstract List<String> getPossibleBelPinNames(BelId belId);  
 	
 	/**
-	 * @return the backing {@link LibraryPin} of this CellPin. If the caller is a 
-	 * 			pseudo cell pin, <code>null</code> is returned because it has no
-	 * 			backing {@link LibraryPin}.
+	 * Returns the backing {@link LibraryPin} of this CellPin. If the caller is a
+	 * pseudo cell pin, <code>null</code> is returned because it has no backing
+	 * {@code LibraryPin}.
+	 * @return the backing LibraryPin for this pin
 	 */
 	public abstract LibraryPin getLibraryPin();  
 	
 	/**
-	 * @return The {@link CellPinType} of this pin. 
+	 * Returns the {@link CellPinType} of this pin.
+	 * @return the type of this pin.
 	 */
 	public abstract CellPinType getType();
 }

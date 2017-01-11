@@ -18,33 +18,7 @@
  * also get a copy of the license at <http://www.gnu.org/licenses/>.
  */
 
-package edu.byu.ece.rapidSmith.design.subsite;
-
 /**
- * A hierarchical cell composed of multiple cells.
+ * Contains classes for representing a Cell-based design.
  */
-public abstract class LibraryMacro extends LibraryCell {
-	private static final long serialVersionUID = 282290704449047358L;
-
-	public LibraryMacro(String name) {
-		super(name);
-	}
-
-	/**
-	 * Always returns true.
-	 * @return true
-	 */
-	@Override
-	public boolean isMacro() {
-		return true;
-	}
-
-	/**
-	 * Macros are never LUTs so always returns false.
-	 * @return false
-	 */
-	@Override
-	public boolean isLut() {
-		return false;
-	}
-}
+package edu.byu.ece.rapidSmith.design.subsite;

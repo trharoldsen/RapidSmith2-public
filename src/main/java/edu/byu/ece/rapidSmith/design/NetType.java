@@ -20,12 +20,13 @@
 package edu.byu.ece.rapidSmith.design;
 
 /**
- * This enum is simply a way to check net types easier than using Strings.
- * @author Chris Lavin
- * Created on: Jun 22, 2010
+ * An enumeration of the possible types nets can be.
  */
 public enum NetType{
+	/** A standard wire connecting a source to one or more sink. */
 	WIRE,
+	/** A net connecting a ground source to one or more sinks. */
 	GND,
+	/** A net connecting a power source to one or more sinks. */
 	VCC
 }

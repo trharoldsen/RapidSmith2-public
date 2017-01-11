@@ -27,7 +27,8 @@ import edu.byu.ece.rapidSmith.device.FamilyType;
 import java.io.Serializable;
 
 /**
- *
+ *  Abstract base class for Design classes.  Design classes hold the logical netlists
+ *  and their mappings to physical components.
  */
 public abstract class AbstractDesign implements Serializable {
 	private static final long serialVersionUID = 6284690406230426968L;
@@ -36,15 +37,25 @@ public abstract class AbstractDesign implements Serializable {
 	// use partName instead of device here to allow speed grade to be specified
 	/**  This is the Xilinx part, package and speed grade that this design targets */
 	protected String partName;
+	/**
+	 * The device for this part.
+	 */
 	protected Device device;
 
+	/**
+	 * Constructor for an AbstractDesign with no name or partName.
+	 */
 	public AbstractDesign() {
 		partName = null;
 		name = null;
 	}
 
+	/**
+	 * Constructor for an AbstractDesign with a name and partName.
+	 * @param designName the name of the design
+	 * @param partName the part this design targets
+	 */
 	public AbstractDesign(String designName, String partName) {
-		this();
 		setName(designName);
 		setPartName(partName);
 	}
@@ -59,7 +70,7 @@ public abstract class AbstractDesign implements Serializable {
 	}
 
 	/**
-	 * Sets the name of this design
+	 * Sets the name of this design.
 	 *
 	 * @param name new name for this design
 	 */
@@ -68,39 +79,44 @@ public abstract class AbstractDesign implements Serializable {
 	}
 
 	/**
-	 * This will return the part name with speed grade of the part this design or
-	 * hard macro targets (ex: xc4vsx35ff668-10).
+	 * Returns the name with speed grade of the part associate with this
+	 * design (eg xc7a100tcsg-3).
 	 *
-	 * @return he part name with package and speed grade information
+	 * @return the part name with package and speed grade information
 	 */
 	public String getPartName() {
 		return this.partName;
 	}
 
 	/**
-	 * Sets the name of the part used for this design.
-	 * The part name should include package and speed grade.  For example
-	 * xc4vfx12ff668-10 is a valid part name.
+	 * Sets the part used for this design and loads the associated {@link Device}. The
+	 * part name should include package and speed grade (eg xc7a100tcsg-3).
 	 *
-	 * @param partName name of the FPGA part.
+	 * @param partName name of the part
 	 */
 	public void setPartName(String partName) {
 		this.partName = partName;
 		this.device = RSEnvironment.defaultEnv().getDevice(partName);
 	}
 
+	/**
+	 * Returns the {@link Device} associated with this design's {@code partName} or
+	 * null if {@code partName} is not set.
+	 *
+	 * @return the device this design is targeted for
+	 */
 	public Device getDevice() {
 		return device;
 	}
 
 	/**
-	 * Returns the base family type this design targets.
-	 * This ensures compatibility with all RapidSmith files. For differentiating
-	 * family types (qvirtex4 rather than virtex4) use getExactFamilyType().
+	 * Returns the {@link FamilyType} for the part this design targets or null
+	 * if partName is not set.
 	 *
-	 * @return the base family type of the part this design targets
+	 * @return the FamilyType of the part this design targets
 	 */
 	public FamilyType getFamily() {
-		return getDevice().getFamily();
+		Device device = getDevice();
+		return device != null ? device.getFamily() : null;
 	}
 }

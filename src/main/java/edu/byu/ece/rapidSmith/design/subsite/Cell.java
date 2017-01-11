@@ -31,14 +31,26 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
- *  Cells represent a primitive logical element in a cell design which can map
- *  onto a single BEL on the device.  Once created, the name and type of the cell
- *  are immutable.  Pins on the cell are initialized upon cell creation based upon
- *  the cell's type.
+ * <p>
+ * Cells represent a primitive logical element in a {@link CellDesign}.  In general,
+ * a cell is logical unit that can be placed onto a single {@link Bel} on the device.
+ * </p><p>
+ * Each cell in a design contains a unique name and is backed by a {@link LibraryCell}
+ * which defines the characteristics of the cell.  These properties are immutable.  The
+ * backing {@code LibraryCell} defines which {@code Bel}s in the device the cell can be
+ * placed on.  It also defines a number of pins for the cell which are initialized when
+ * the cell is created.
+ * </p><p>
+ * In addition to the pins defined by the {@code LibraryCell}, a cell may also contain
+ * {@link PseudoCellPin}s -- special pins that don't exist on the cell but which relate
+ * to a {@link edu.byu.ece.rapidSmith.device.BelPin} that needs to be driven by a source.
+ * The cell also contains a collection of properties describing how the cell is
+ * configued.
+ * </p>
  */
 public class Cell {
 	/** Unique name of this instance */
-	private String name;
+	private final String name;
 	/** The CellDesign this cell exists in */
 	private CellDesign design;
 	/** Type of the cell (LUT6, FF, DSP48, ...) */
@@ -55,10 +67,13 @@ public class Cell {
 	private Set<CellPin> pseudoPins;
 
 	/**
-	 * Creates a new cell with specified name and type.
+	 * Creates a new cell with specified name and backing {@link LibraryCell}.  The
+	 * pins from the backing {@code LibraryCell} are also created and added to the cell
+	 * at this time.
 	 *
 	 * @param name name of the new cell
-	 * @param libCell the library cell to base this cell on
+	 * @param libCell the {@code LibraryCell} this cell is based on
+	 * @throws NullPointerException if {@code name} or {@code libCell} is null
 	 */
 	public Cell(String name, LibraryCell libCell) {
 		Objects.requireNonNull(name);
@@ -81,27 +96,25 @@ public class Cell {
 	}
 
 	/**
-	 * Returns the name of this cell.
+	 * Returns the name of this cell.  Cell names must be unique for a design.
+	 *
+	 * @return the name of this cell
 	 */
 	public final String getName() {
 		return this.name;
 	}
 
-	void setName(String name) {
-		assert name != null;
-
-		this.name = name;
-	}
-
 	/**
 	 * Returns true if this cell is part of a design.
+	 * @return true if this cell is part of a design
 	 */
 	public final boolean isInDesign() {
 		return design != null;
 	}
 
 	/**
-	 * Returns the design this cell exists in.
+	 * Returns the design this cell exists in or null if the Cell is an orphan.
+	 * @return the design this cell exists in
 	 */
 	public final CellDesign getDesign() {
 		return design;
@@ -118,43 +131,62 @@ public class Cell {
 	}
 
 	/**
-	 * Returns the library cell this cell is backed by.
+	 * Returns the {@link LibraryCell} this cell is backed by.  The {@code LibraryCell}
+	 * defines the type of the cell and where the cell can be placed.
+	 *
+	 * @return the {@code LibraryCell} this cell is backed by
 	 */
 	public final LibraryCell getLibCell() {
 		return libCell;
 	}
 
 	/**
-	 * Returns true if this cell acts as a VCC source.
+	 * Returns true if this cell acts as a VCC source.  When true, this cell
+	 * always outputs VCC and can drive VCC nets.
+	 *
+	 * @return true if this cell acts as a VCC source
 	 */
 	public boolean isVccSource() {
 		return getLibCell().isVccSource();
 	}
 
 	/**
-	 * Returns true if this cell acts as a ground source.
+	 * Returns true if this cell acts as a ground source.  When true, this cell
+	 * always outputs ground and can drive GND nets.
+	 *
+	 * @return true if this cell acts as a ground source
 	 */
 	public boolean isGndSource() {
 		return getLibCell().isGndSource();
 	}
 
 	/**
-	 * Returns true if this cell is a top-level port of the design
+	 * Returns true if this cell is a top-level port of the design.  Ports are the
+	 * IO in a design.
+	 * // TODO Can Thomas add more here about what is special about these.
+	 * @return true if this cell is a top-level port of the design
 	 */
 	public boolean isPort() {
 		return getLibCell().isPort();
 	}
 	
 	/**
-	 * Returns the bondedness of this cell.  IO are either BONDED or UNBONDED,
-	 * all others INTERNAL.
+	 * Returns whether this cell should be placed on a bonded IO pad.  IO cells can be
+	 * either {@link BondedType#BONDED} or {@link BondedType#UNBONDED}, non-IO cells
+	 * should be {@link BondedType#INTERNAL}.
+	 *
+	 * @return the bondedness of this cell
 	 */
 	public BondedType getBonded() {
 		return bonded;
 	}
 
 	/**
-	 * Sets the bonded parameter for this cell.
+	 * Sets whether this cell should be placed on a bonded IO pad.  Non-IO should be
+	 * set to INTERNAL.  INTERNAL is the default value.
+	 * @param bonded the new bonded parameter for this cell
+	 * @throws NullPointerException if {@code bonded} is null
+	 * @see #getBonded()
 	 */
 	public void setBonded(BondedType bonded) {
 		Objects.requireNonNull(bonded);
@@ -164,35 +196,61 @@ public class Cell {
 
 	/**
 	 * Returns true if this cell is placed on a BEL.
+	 * @return true if this cell is placed on a BEL
 	 */
 	public final boolean isPlaced() {
 		return bel != null;
 	}
 
+	/**
+	 * Currently unsupported.
+	 * @return an empty collection at this time
+	 */
 	public final List<Cell> getSubcells() {
 		// TODO get the subcells once we have support
 		return Collections.emptyList();
 	}
 
 	/**
-	 * Returns the BEL this cell is placed at in the design.
+	 * Returns the {@link Bel} this cell is placed at.
 	 *
-	 * @return the BEL this cell is placed at in the design
+	 * @return the {@code Bel} this cell is placed at
 	 */
 	public final Bel getBel() {
 		return bel;
 	}
 
+	/**
+	 * Returns the possible {@link Bel}s this cell can be placed at.  For
+	 * non-hierarchical cells, these is the {@code Bel}s the cell can be placed on;
+	 * for hierarchical cells, these are the anchors defining the starting point for
+	 * placing the cell.
+	 *
+	 * TODO: Thomas -- what is the correct term for non-hierarchical cells
+	 *
+	 * @return the possible locations this cell can be placed at
+	 */
 	public final List<BelId> getPossibleAnchors() {
 		return getLibCell().getPossibleAnchors();
 	}
 
+	/**
+	 * Returns a list of all {@link Bel}s which will be required to place a cell if
+	 * the cell is anchored at {@code Bel anchor}.  For non-hierarchical, this list will
+	 * be a singleton containing {@code anchor}.  For hierarchical cells, this list will
+	 * contain all {@code Bel}s needed for the subcells.
+	 *
+	 * @param anchor the anchor for the placement of this cell
+	 * @return all {@code Bel}s which will be required to place a cell anchored at
+	 * {@code anchor}
+	 */
 	public final List<Bel> getRequiredBels(Bel anchor) {
 		return getLibCell().getRequiredBels(anchor);
 	}
 
 	/**
-	 * Returns the site this cell resides at.
+	 * Returns the site this cell resides at or null if the cell is not placed.
+	 * This method is identical to calling {@code getBel().getSite()}
 	 *
 	 * @return the site this cell resides
 	 */
@@ -211,16 +269,14 @@ public class Cell {
 	}
 	
 	/**
-	 * Creates a new pseudo pin, and attaches it to the cell. 
+	 * Creates a new {@link PseudoCellPin}, and attaches it to the cell.
 	 * 
-	 * @param pinName Name of the pin to attach
-	 * @param dir Direction of the pseudo pin
-	 * 
-	 * @throws IllegalArgumentException If a pin with {@code pinName} already exists on this cell
-	 * 							an assertion error is thrown.
-	 * 
-	 * @return The newly created pseudo CellPin. If a pin by {@code pinName}
-	 * 			already exists, then null is returned.  
+	 * @param pinName name of the pin to attach
+	 * @param dir direction of the pseudo pin
+	 * @return the newly created pseudo CellPin.
+	 * @throws NullPointerException if {@code pinName} or {@code dir} is null
+	 * @throws IllegalArgumentException if a pin with {@code pinName} already exists on this cell
+	 * @see PseudoCellPin
 	 */
 	public CellPin attachPseudoPin(String pinName, PinDirection dir) {
 		
@@ -242,18 +298,19 @@ public class Cell {
 	}
 	
 	/**
-	 * Attaches an existing pseudo pin to this cell. The pin will be
-	 * updated to point to this cell as its new parent. Any BEL pin mappings
+	 * Attaches an existing {@link PseudoCellPin} to this cell. The pin will be
+	 * updated to point to this cell as its new parent. Any {@link CellPin} to
+	 * {@link edu.byu.ece.rapidSmith.device.BelPin} mappings
 	 * that were previously on the pin are now invalid and should be invalidated
 	 * before this function is called.
 	 * 
-	 * @param pin Pseudo pin to attach to the cell
+	 * @param pin the pseudo pin to attach to this cell
 	 * 
-	 * @throws IllegalArgumentException If {@code pin} already exists on this cell or 
-	 * 			is not a pseudo pin, an exception is thrown.
+	 * @throws IllegalArgumentException if {@code pin} already exists on this cell or
+	 * 			is not a pseudo pin
 	 * 
-	 * @return <code>true</code> if the pin was successfully attached
-	 * 			to the cell. <code>false</code> otherwise 
+	 * @return <code>true</code> if the pin was successfully attached to this cell.
+	 * @see PseudoCellPin
 	 */
 	public boolean attachPseudoPin(CellPin pin) {
 		if (!pin.isPseudoPin()) {
@@ -273,12 +330,15 @@ public class Cell {
 	}
 	
 	/**
-	 * Removes a pseudo pin from the cell
+	 * Detaches and removes a {@link PseudoCellPin} from the cell.  If you
+	 * want to remove the pin from the design completely, you will need to disconnect
+	 * it from all nets as well.
 	 * 
-	 * @param pin CellPin to remove
+	 * @param pin the pin to remove
 	 * @return <code>true</code> if the pin was attached to the cell 
 	 * 			and was successfully removed. <code>false</code> is returned if either
 	 * 			{@code pin} is not a pseudo pin, or is not attached to the cell 
+	 * @see PseudoCellPin
 	 */
 	public boolean removePseudoPin(CellPin pin) {
 		
@@ -292,11 +352,12 @@ public class Cell {
 	}
 	
 	/**
-	 * Removes a pseudo pin from the cell. If you want to remove the pin from the design
-	 * completely, you will need to disconnect it from all nets as well.
+	 * Removes the {@link PseudoCellPin} with the given name from the cell. If you
+	 * want to remove the pin from the design completely, you will need to disconnect
+	 * it from all nets as well.
 	 * 
-	 * @param pinName Name of the pin to remove
-	 * @return The CellPin object removed from the cell. If no matching cell pin is found
+	 * @param pinName name of the pin to remove
+	 * @return the pin object removed from the cell. If no matching cell pin is found
 	 * 			or the cell pin is not a pseudo pin, null is returned.
 	 */ 
 	public CellPin removePseudoPin(String pinName) {
@@ -313,9 +374,9 @@ public class Cell {
 	}
 	
 	/**
-	 * Gets all pseudo pins currently attached to this cell
+	 * Returns all {@link PseudoCellPin}s currently attached to this cell.
 	 * 
-	 * @return A Set of attached pseudo pins
+	 * @return an unmodifiable {@link Set} of attached pseudo pins
 	 */
 	public Set<CellPin> getPseudoPins() {
 		
@@ -328,10 +389,9 @@ public class Cell {
 	}
 	
 	/**
-	 * Gets the number of pseudo (fake) pins
-	 * currently attached to this cell.
+	 * Returns the number of {@link PseudoCellPin}s currently attached to this cell.
 	 * 
-	 * @return The number of pseudo pins attached to this cell.
+	 * @return the number of pseudo pins attached to this cell
 	 */
 	public int getPseudoPinCount() {
 		return pseudoPins == null ? 0 : pseudoPins.size();
@@ -348,10 +408,31 @@ public class Cell {
 		return properties;
 	}
 
+
+	/**
+	 * Returns the control set properties and their values for the cell based on its
+	 * placement.  If this cell is not placed, the method will throw an
+	 * {@link IllegalStateException}.  Control sets are properties that must be
+	 * configured consistently for all cells in a site.
+	 *
+	 * @return the control set properties and their value for this cell.
+	 * @throws IllegalStateException if this cell is not placed
+	 */
 	public Map<SiteProperty, Object> getSharedSiteProperties() {
+		if (!isPlaced())
+			throw new IllegalStateException("Cell not placed");
 		return getSharedSiteProperties(bel.getId());
 	}
 
+	/**
+	 * Returns the control set properties and their values for the cell when placed
+	 * on a Bel with type {@link BelId}.  The cell does not need to be placed.
+	 * Control sets are properties that must be configured consistently for all cells
+	 * in a site.
+	 *
+	 * @param belId the type of Bel to get the control set properties for
+	 * @return the control set properties and their value for this cell.
+	 */
 	public Map<SiteProperty, Object> getSharedSiteProperties(BelId belId) {
 		Map<SiteProperty, Object> returnMap = new HashMap<>();
 
@@ -366,7 +447,10 @@ public class Cell {
 	}
 
 	/**
-	 * Returns the nets that connect to the pins of this cell.
+	 * Returns the nets that connect to the pins of this cell.  This list is rebuilt
+	 * each time this method is called.
+	 *
+	 * @return the nets that connect to the pins of this cell
 	 */
 	public final Collection<CellNet> getNetList() {
 		return pinMap.values().stream()
@@ -376,24 +460,31 @@ public class Cell {
 	}
 
 	/**
-	 * Returns the pin on this cell with the specified name.
+	 * Returns the pin on this cell with the specified name or null if no no pin
+	 * with the name exist on the cell.
+	 *
+	 * @param pinName the name of the pin
+	 * @return the pin on this cell with the specified name
 	 */
 	public final CellPin getPin(String pinName) {
 		return pinMap.get(pinName);
 	}
 
 	/**
-	 * Returns all of the pins on this net.  The returned collection should not
-	 * be modified by the user.
+	 * Returns all of the {@link CellPin}s (including pseudo pins) on this net.
+	 * The returned set is unmodifiable.
 	 *
-	 * @return A collection of unique pins being used on this cell.
+	 * @return a collection of pins on this cell
 	 */
 	public final Collection<CellPin> getPins() {
-		return pinMap.values();
+		return Collections.unmodifiableCollection(pinMap.values());
 	}
 
 	/**
-	 * Returns all of the output pins on this net.
+	 * Returns all of the output pins on this net.  Output pins have direction of
+	 * either OUT or INOUT.  The collection is created on this call.
+	 *
+	 * @return a collection containing the output pins on this net
 	 */
 	public final Collection<CellPin> getOutputPins() {
 		return pinMap.values().stream()
@@ -402,7 +493,10 @@ public class Cell {
 	}
 
 	/**
-	 * Returns all of the input pins on this net.
+	 * Returns all of the input pins on this net.  Input pins have direction of
+	 * either IN or INOUT.  The collection is created on this call.
+	 *
+	 * @return a collection containing the input pins on this net
 	 */
 	public final Collection<CellPin> getInputPins() {
 		return pinMap.values().stream()
@@ -411,8 +505,9 @@ public class Cell {
 	}
 
 	/**
-	 * Returns a deep copy of this cell.  The deep copy does not have any design
-	 * or cluster information.
+	 * Creates and returns a deep copy of this cell.  The deep copy does not belong
+	 * to a design.
+	 *
 	 * @return a deep copy of this cell
 	 */
 	public Cell deepCopy() {
@@ -421,11 +516,11 @@ public class Cell {
 
 	/**
 	 * Returns a deep copy of this cell except with changes specified in the
-	 * changes described in the <i>changes</i> argument map.  The valid changes
-	 * described in the map that are accepted are <br>
+	 * {@code changes} argument map.  The changes map is a map from a property name
+	 * to a new value.  The accepted changes described in the map are <br>
 	 * <ul>
-	 *     <li>name -> String</li>
-	 *     <li>type -> LibraryCell</li>
+	 *     <li>"name" -&gt; String</li>
+	 *     <li>"type" -&gt; LibraryCell</li>
 	 * </ul><br>
 	 * Other values in the map are ignored.
 	 *
@@ -436,10 +531,14 @@ public class Cell {
 		return deepCopy(Cell::new, changes);
 	}
 
-	protected Cell deepCopy(BiFunction<String, LibraryCell, Cell> cellFactory) {
-		return deepCopy(cellFactory, Collections.emptyMap());
-	}
-
+	/**
+	 * Method implementing the deep copy.  This method accepts a factory method for
+	 * creating a new cell of the desired type and performs the deep copy.
+	 *
+	 * @param cellFactory factory for creating a new cell
+	 * @param changes map of the changes to make
+	 * @return the newly created deep copy of this cell
+	 */
 	protected Cell deepCopy(
 			BiFunction<String, LibraryCell, Cell> cellFactory,
 			Map<String, Object> changes

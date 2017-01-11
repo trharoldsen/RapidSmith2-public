@@ -85,31 +85,55 @@ public class PseudoCellPin extends CellPin {
 		return direction;
 	}
 
+	/**
+	 * This is a pseudo pin -- returns true.
+	 * @return true
+	 */
 	@Override
 	public boolean isPseudoPin() {
 		return true;
 	}
 
+	/**
+	 * Does not apply to pseudo pins.  Always returns null
+	 * @return null
+	 */
 	@Override
 	public List<BelPin> getPossibleBelPins() {
 		return null;
 	}
 
+	/**
+	 * Does not apply to pseudo pins.  Always returns null
+	 * @return null
+	 */
 	@Override
 	public List<BelPin> getPossibleBelPins(Bel bel) {
 		return null;
 	}
 
+	/**
+	 * Does not apply to pseudo pins.  Always returns null
+	 * @return null
+	 */
 	@Override
 	public List<String> getPossibleBelPinNames() {
 		return null;
 	}
 
+	/**
+	 * Does not apply to pseudo pins.  Always returns null
+	 * @return null
+	 */
 	@Override
 	public List<String> getPossibleBelPinNames(BelId belId) {
 		return null;
 	}
 
+	/**
+	 * Does not apply to pseudo pins.  Always returns null
+	 * @return null
+	 */
 	@Override
 	public LibraryPin getLibraryPin() {
 		return null;

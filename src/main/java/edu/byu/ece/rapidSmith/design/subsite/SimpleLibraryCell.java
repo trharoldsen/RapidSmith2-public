@@ -29,7 +29,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- *
+ * A non-macro {@link LibraryCell}.  Cells backed by this
+ * {@code SimpleLibraryCell} are placed directly onto BELs.
  */
 public class SimpleLibraryCell extends LibraryCell {
 	private static final long serialVersionUID = 6378678352365270213L;
@@ -44,6 +45,10 @@ public class SimpleLibraryCell extends LibraryCell {
 	private Integer numLutInputs = null;
 	private boolean isPort;
 
+	/**
+	 * Constructs a new {@code SimpleLibraryCell}.
+	 * @param name the name of the {@code LibraryCell}
+	 */
 	public SimpleLibraryCell(String name) {
 		super(name);
 	}
@@ -63,6 +68,10 @@ public class SimpleLibraryCell extends LibraryCell {
 		return isVccSource;
 	}
 
+	/**
+	 * Sets whether this is a VCC source.
+	 * @param isVccSource true if this is a VCC source
+	 */
 	public void setVccSource(boolean isVccSource) {
 		this.isVccSource = isVccSource;
 	}
@@ -72,14 +81,26 @@ public class SimpleLibraryCell extends LibraryCell {
 		return isGndSource;
 	}
 
+	/**
+	 * Sets whether this is a port.
+	 * @param isPort true if this is a port
+	 */
 	public void setIsPort(boolean isPort) {
 		this.isPort = isPort;
 	}
-	
+
+	/**
+	 * Sets whether this is a GND source.
+	 * @param isGndSource true if this is a GND source
+	 */
 	public void setGndSource(boolean isGndSource) {
 		this.isGndSource = isGndSource;
 	}
 
+	/**
+	 * Sets the number of inputs for LUT cells.  Set to null for non-LUT cells.
+	 * @param numInputs the number of inputs for LUT cells or null
+	 */
 	public void setNumLutInputs(Integer numInputs) {
 		this.numLutInputs = numInputs;
 	}
@@ -103,15 +124,16 @@ public class SimpleLibraryCell extends LibraryCell {
 	}
 
 	/**
-	 * List containing the templates of all this pins on this site
+	 * List containing the templates of all pins on this cell
+	 * @param libraryPins list containing the templates of all pins on this cell
 	 */
 	public void setLibraryPins(List<LibraryPin> libraryPins) {
 		this.libraryPins = libraryPins;
 	}
 
 	/**
-	 * @return list of the {@link BelId}s of BELs that cells of this type can be
-	 * placed on
+	 * Returns the {@link BelId}s cells of this type can be placed on.
+	 * @return list of the {@link BelId}s cells of this type can be placed on
 	 */
 	@Override
 	public List<BelId> getPossibleAnchors() {
@@ -121,11 +143,17 @@ public class SimpleLibraryCell extends LibraryCell {
 	/**
 	 * List containing the {@link BelId}s of BELs that cells of this type can be
 	 * placed on.
+	 * @param possibleBels the list of the possible bels for this object
 	 */
 	public void setPossibleBels(List<BelId> possibleBels) {
 		this.compatibleBels = possibleBels;
 	}
 
+	/**
+	 * As these have no hierarchy, returns a singleton with anchor.
+	 * @param anchor the BEL the cell is being placed at
+	 * @return {@code anchor}
+	 */
 	@Override
 	public List<Bel> getRequiredBels(Bel anchor) {
 		return Collections.singletonList(anchor);
@@ -136,6 +164,10 @@ public class SimpleLibraryCell extends LibraryCell {
 		return sharedSiteProperties.get(anchor);
 	}
 
+	/**
+	 * Sets the shared site properties.
+	 * @param sharedSiteProperties the shared site properties for this {@code LibraryCell}
+	 */
 	public void setSharedSiteProperties(
 			Map<BelId, Map<String, SiteProperty>> sharedSiteProperties
 	) {

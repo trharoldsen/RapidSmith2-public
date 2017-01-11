@@ -25,21 +25,19 @@ import edu.byu.ece.rapidSmith.device.Bel;
 import edu.byu.ece.rapidSmith.device.Site;
 import edu.byu.ece.rapidSmith.util.Exceptions;
 import edu.byu.ece.rapidSmith.interfaces.vivado.XdcConstraint;
+import edu.byu.ece.rapidSmith.util.Exceptions.DesignAssemblyException;
 
 import java.util.*;
 
 /**
- *  This class represents a logical netlist consisting of cells interconnected by
- *  nets along with cell placement information.  This class supports constant time
- *  look up of cells by both name and location.
- *
- *  Placement information of cells in the CellDesign are updated through calls to
- *  {@link #placeCell(Cell, edu.byu.ece.rapidSmith.device.Bel)}.  The
- *  placement information is stored in a two-level map of primitive sites and
- *  BELs allowing quick checking of cells located at both levels of hierarchy.
- *
- *  CellDesigns preserve attributes found in XDL designs for simpler conversion
- *  back to XDL.
+ * <p>
+ * This class represents a cell-based logical netlist with optional placement
+ * information.  Cells can be looked up in constant time by both name and location.
+ * Placement information of cells in the CellDesign are updated through calls to
+ * {@link #placeCell(Cell, edu.byu.ece.rapidSmith.device.Bel)}.  The
+ * placement information is stored in a two-level map of sites and
+ * BELs allowing quick checking of cells located at both levels of hierarchy.
+ * </p>
  */
 public class CellDesign extends AbstractDesign {
 	private static final long serialVersionUID = -807318199842395826L;
@@ -71,8 +69,8 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Creates a new design and populates it with the given design name and
-	 * part name.
+	 * Constructs a design and populates it with the given design name and partName
+	 * and loads the associated device.
 	 *
 	 * @param designName The name of the newly created design.
 	 * @param partName   The target part name of the newly created design.
@@ -99,13 +97,32 @@ public class CellDesign extends AbstractDesign {
 		return properties;
 	}
 
-	public boolean hasCell(String fullName) {
-		Objects.requireNonNull(fullName);
+	/**
+	 * Returns true if this design has a cell with the specified name.
+	 * @param cellName the name of the cell to test for
+	 * @return true if this design ahas a cell with the specified name
+	 * @throws NullPointerException if {@code cellName} is null
+	 */
+	public boolean hasCell(String cellName) {
+		Objects.requireNonNull(cellName);
 
-		return cellMap.containsKey(fullName);
+		return cellMap.containsKey(cellName);
 	}
 
+	/**
+	 * Returns a unique cell name for this design based on the proposed name.  The
+	 * returned name is guaranteed to not be in the design at the time this method is
+	 * invoked.  If {@code proposedName} is not in the design, this method will simply
+	 * return the name.  Otherwise, it will append {@code _#} to the name with # being
+	 * the lowest integer that yields a unique name.
+	 *
+	 * @param proposedName the proposed name for the cell
+	 * @return a unique cell name for this design
+	 * @throws NullPointerException if {@code proposedName} is null
+	 */
 	public String getUniqueCellName(String proposedName) {
+		Objects.requireNonNull(proposedName);
+
 		if (!hasCell(proposedName))
 			return proposedName;
 
@@ -119,26 +136,25 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns the cell in this design with the specified name.  In the case of
-	 * molecules, cells are stored using their full hierarchical names.
+	 * Returns the cell in this design with the specified name.
 	 *
-	 * @param fullName name of the cell to return
+	 * @param cellName name of the cell to return
 	 * @return the cell, or null if it does not exist
+	 * @throws NullPointerException if {@code cellName} is null
 	 */
-	public Cell getCell(String fullName) {
-		Objects.requireNonNull(fullName);
+	public Cell getCell(String cellName) {
+		Objects.requireNonNull(cellName);
 
-		return cellMap.get(fullName);
+		return cellMap.get(cellName);
 	}
 
 	/**
-	 * Returns all of the cells in this design.  The returned collection should not
-	 * be modified.
+	 * Returns all of the cells in this design.  The returned collection is immutable.
 	 *
-	 * @return the cells in this design
+	 * @return a collection containing the cells in this design
 	 */
 	public Collection<Cell> getCells() {
-		return cellMap.values();
+		return Collections.unmodifiableCollection(cellMap.values());
 	}
 
 	/**
@@ -148,18 +164,21 @@ public class CellDesign extends AbstractDesign {
 	 *
 	 * @param cell the cell to add
 	 * @return the added cell
+	 * @throws NullPointerException if {@code cell} is null
+	 * @throws DesignAssemblyException if {@code cell} is already in a design or if a
+	 *     cell with the same name already exists in this design
 	 */
 	public Cell addCell(Cell cell) {
 		Objects.requireNonNull(cell);
 		if (cell.isInDesign())
-			throw new Exceptions.DesignAssemblyException("Cell already in a design.");
+			throw new DesignAssemblyException("Cell already in a design.");
 
 		return registerCell(cell);
 	}
 
 	private Cell registerCell(Cell cell) {
 		if (hasCell(cell.getName()))
-			throw new Exceptions.DesignAssemblyException("Cell with name already exists in design.");
+			throw new DesignAssemblyException("Cell with name already exists in design.");
 
 		cell.setDesign(this);
 		cellMap.put(cell.getName(), cell);
@@ -169,14 +188,14 @@ public class CellDesign extends AbstractDesign {
 	/**
 	 * Disconnects and removes the specified cell from this design.
 	 *
-	 * The cell should not be a part of a molecule.
-	 *
 	 * @param cell the cell in this design to remove
+	 * @throws NullPointerException if {@code cell} is null
+	 * @throws DesignAssemblyException if cell is not in this design
 	 */
 	public void removeCell(Cell cell) {
 		Objects.requireNonNull(cell);
 		if (cell.getDesign() != this)
-			throw new Exceptions.DesignAssemblyException("Cannot remove cell not in the design.");
+			throw new DesignAssemblyException("Cannot remove cell not in the design.");
 
 		removeCell_impl(cell);
 	}
@@ -191,14 +210,13 @@ public class CellDesign extends AbstractDesign {
 	 * Disconnects without removing the specified cell from this design.  This is
 	 * accomplished by unplacing the cell and disconnecting all of its pins.
 	 *
-	 * The cell should not be a part of a molecule.
-	 *
 	 * @param cell the cell to disconnect from this design
+	 * @throws NullPointerException if {@code cell} is null
 	 */
 	public void disconnectCell(Cell cell) {
 		Objects.requireNonNull(cell);
 		if (cell.getDesign() != this)
-			throw new Exceptions.DesignAssemblyException("Cannot disconnect cell not in the design.");
+			throw new DesignAssemblyException("Cannot disconnect cell not in the design.");
 
 		disconnectCell_impl(cell);
 	}
@@ -215,12 +233,29 @@ public class CellDesign extends AbstractDesign {
 		}
 	}
 
+	/**
+	 * Returns true if this design has a net with the specified name.
+	 * @param netName the name of the net to test for
+	 * @return true if this design has a net with the specified name
+	 * @throws NullPointerException if {@code netName} is null
+	 */
 	public boolean hasNet(String netName) {
 		Objects.requireNonNull(netName);
 
 		return netMap.containsKey(netName);
 	}
 
+	/**
+	 * Returns a unique net name for this design based on the proposed name.  The
+	 * returned name is guaranteed to not be in the design at the time this method is
+	 * invoked.  If {@code proposedName} is not in the design, this method will simply
+	 * return the name.  Otherwise, it will append {@code _#} to the name with # being
+	 * the lowest integer that yields a unique name.
+	 *
+	 * @param proposedName the proposed name for the net
+	 * @return a unique net name for this design
+	 * @throws NullPointerException if {@code proposedName} is null
+	 */
 	public String getUniqueNetName(String proposedName) {
 		if (!hasNet(proposedName))
 			return proposedName;
@@ -236,11 +271,11 @@ public class CellDesign extends AbstractDesign {
 
 
 	/**
-	 * Returns the net in this design with the specified name.  Nets of molecules
-	 * are stored using their full hierarchical name.
+	 * Returns the net in this design with the specified name.
 	 *
 	 * @param netName name of the net to return
 	 * @return the net with the specified name, or null if it does not exist
+	 * @throws NullPointerException if {@code netName} is null
 	 */
 	public CellNet getNet(String netName) {
 		Objects.requireNonNull(netName);
@@ -248,41 +283,43 @@ public class CellDesign extends AbstractDesign {
 		return netMap.get(netName);
 	}
 
+	/**
+	 * Returns all of the nets in the design.  The returned collection is unmodifiable.
+	 * @return a collection of all nets in the design
+	 */
 	public Collection<CellNet> getNets() {
-		return netMap.values();
+		return Collections.unmodifiableCollection(netMap.values());
 	}
 
 	/**
-	 * Adds a net to this design.  Names of nets must be unique.
+	 * Adds a net to this design.  The name of net must be unique to the design.  If
+	 * the net is VCC or GND, the VCC/GND net will be set to this net if not already
+	 * set.
 	 *
-	 * @param net The net to add.
+	 * @param net the net to add.
+	 * @return the added net
+	 * @throws NullPointerException if {@code net} is null
+	 * @throws DesignAssemblyException if the name of the net is already used in the design
 	 */
 	public CellNet addNet(CellNet net) {
 		Objects.requireNonNull(net);
 		if (net.isInDesign())
-			throw new Exceptions.DesignAssemblyException("Cannot add net from another design.");
+			throw new DesignAssemblyException("Cannot add net from another design.");
 
 		return addNet_impl(net);
 	}
 
-	protected CellNet addNet_impl(CellNet net) {
+	private CellNet addNet_impl(CellNet net) {
 		if (hasNet(net.getName()))
-			throw new Exceptions.DesignAssemblyException("Net with name already exists in design.");
+			throw new DesignAssemblyException("Net with name already exists in design.");
 
 		if (net.isVCCNet()) {
-			// if (vccNet != null) {
-			// 	throw new DesignAssemblyException("VCC net already exists in design.");
-			// }
 			vccNet = net;
 		}
 		else if (net.isGNDNet()) {
-			// if (gndNet != null) {
-			// 	throw new DesignAssemblyException("GND net already exists in design.");
-			// }
 			gndNet = net;
 		} 
-		
-		// TODO: should VCC and GND nets be added to the net data structure
+
 		netMap.put(net.getName(), net);
 		net.setDesign(this);
 		
@@ -290,16 +327,20 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Disconnects and removes a net from this design.
+	 * Removes a net from this design.  The net should already be fully disconnected
+	 * from the design and have no nets.  This method will update the VCC/GND nets if
+	 * necessary
 	 *
 	 * @param net the net to remove from this design
+	 * @throws NullPointerException if {@code net} is null
+	 * @throws DesignAssemblyException if the net is not disconnected from the design
 	 */
 	public void removeNet(CellNet net) {
 		Objects.requireNonNull(net);
 		if (net.getDesign() != this)
 			return;
 		if (!net.getPins().isEmpty())
-			throw new Exceptions.DesignAssemblyException("Cannot remove connected net.");
+			throw new DesignAssemblyException("Cannot remove connected net.");
 
 		removeNet_impl(net);
 	}
@@ -309,9 +350,11 @@ public class CellDesign extends AbstractDesign {
 		
 		if (net.isVCCNet()) {
 			vccNet = null;
-		} 
+			// TODO search to see if another VCC net exists in the design
+		}
 		else if (net.isGNDNet()) {
 			gndNet = null;
+			// TODO search to see if another GND net exists in the design
 		}
 		else {
 			netMap.remove(net.getName());
@@ -320,14 +363,16 @@ public class CellDesign extends AbstractDesign {
 
 	/**
 	 * Disconnects the specified net from this design without removing it.  This
-	 * method unroutes the net and removes it from the netlist of the pins it is on.
+	 * method unroutes the net and disconnects it from all of its pins.
 	 *
 	 * @param net the net to disconnect
+	 * @throws NullPointerException if {@code net} is null
+	 * @throws DesignAssemblyException if the net is not in the design
 	 */
 	public void disconnectNet(CellNet net) {
 		Objects.requireNonNull(net);
 		if (net.getDesign() != this)
-			throw new Exceptions.DesignAssemblyException("Cannot disconnect net not in the design.");
+			throw new DesignAssemblyException("Cannot disconnect net not in the design.");
 
 		disconnectNet_impl(net);
 	}
@@ -339,18 +384,22 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns the power(VCC) net of the design
+	 * Returns the power(VCC) net of the design.  There may be more than one VCC
+	 * net in the design.  This will return one of them.  If there is no VCC net in
+	 * the design, this method returns null.
 	 * 
-	 * @return
+	 * @return the VCC net in the design.
 	 */
 	public CellNet getVccNet() {
 		return vccNet;
 	}
 	
 	/**
-	 * Returns the ground(GND) net of the design
-	 * 
-	 * @return
+	 * Returns the ground(GND) net of the design.  There may be more than one GND
+	 * net in the design.  This will return one of them.  If there is no GND net in
+	 * the design, this method returns null.
+	 *
+	 * @return the GND net in the design.
 	 */
 	public CellNet getGndNet() {
 		return gndNet;
@@ -359,8 +408,9 @@ public class CellDesign extends AbstractDesign {
 	/**
 	 * Returns the cell at the specified BEL in this design.
 	 *
-	 * @param bel the BEL of the desired cell
+	 * @param bel the BEL of interest
 	 * @return the cell at specified BEL, or null if the BEL is unoccupied
+	 * @throws NullPointerException if {@code bel} is null
 	 */
 	public Cell getCellAtBel(Bel bel) {
 		Objects.requireNonNull(bel);
@@ -372,25 +422,28 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns a collection of cells at the specified site in this design.
+	 * Returns a collection of cells at the specified site in this design.  This
+	 * collection is unmodifiable.  If no cells exist at the site, the returned
+	 * collection will be empty.
 	 *
 	 * @param site the site of the desired cells
-	 * @return the instance at site, or null if the primitive site is unoccupied
+	 * @return the cells at the site
 	 */
 	public Collection<Cell> getCellsAtSite(Site site) {
 		Objects.requireNonNull(site);
 
 		Map<Bel, Cell> sitePlacementMap = placementMap.get(site);
 		if (sitePlacementMap == null)
-			return null;
-		return sitePlacementMap.values();
+			return Collections.emptyList();
+		return Collections.unmodifiableCollection(sitePlacementMap.values());
 	}
 
 	/**
 	 * Tests if the specified BEL is occupied in this design.
 	 *
 	 * @param bel the BEL to test
-	 * @return true if a cell is placed at the BEL, else false
+	 * @return true if a cell is placed at the BEL
+	 * @throws NullPointerException if {@code bel} is null
 	 */
 	public boolean isBelUsed(Bel bel) {
 		Objects.requireNonNull(bel);
@@ -400,11 +453,12 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Tests if any BELs in the the specified primitive site are occupied in
+	 * Tests if any BELs in the the specified site are occupied in
 	 * this design.
 	 *
 	 * @param site the site to test
-	 * @return true if this design uses any BELs in site, else false
+	 * @return true if this design uses any BELs in site
+	 * @throws NullPointerException if {@code site} is null
 	 */
 	public boolean isSiteUsed(Site site) {
 		Objects.requireNonNull(site);
@@ -413,11 +467,29 @@ public class CellDesign extends AbstractDesign {
 		return sitePlacementMap != null && !sitePlacementMap.isEmpty();
 	}
 
+	/**
+	 * Returns all of the sites which are homes to one or more cells in the design.
+	 * the returned collection is unmodifiable.
+	 * @return a collection to all sites used in the design
+	 */
 	public Collection<Site> getUsedSites() {
-		return placementMap.keySet();
+		return Collections.unmodifiableCollection(placementMap.keySet());
 	}
 
+	/**
+	 * Tests if the cell can be placed at the {@link Bel} anchor.  If the cell
+	 * is non-hierarchical, this cell will check if {@code anchor} is used.
+	 * If the cell is hierarchical, this method will check all Bels required
+	 * to place the hierarchical cell.
+	 *
+	 * @param cell the cell to test placement for
+	 * @param anchor the anchor bel to test placement on
+	 * @return true if the cell can be placed at {@code anchor}, else false
+	 * @throws NullPointerException if {@code cell} or {@code anchor} is null
+	 */
 	public boolean canPlaceCellAt(Cell cell, Bel anchor) {
+		Objects.requireNonNull(cell);
+		Objects.requireNonNull(anchor);
 		List<Bel> requiredBels = cell.getLibCell().getRequiredBels(anchor);
 		return canPlaceCellAt_impl(requiredBels);
 	}
@@ -431,23 +503,27 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Places the cell at the specified BEL in this design.
-	 * No cells should exist at the specified BEL in this design.
+	 * Places the {@code cell} in the design anchored at {@code anchor}.
+	 * The cell should not already be placed and the location should be unoccupied.
 	 *
 	 * @param cell the cell to place
-	 * @param anchor the BEL where the cell is to be placed
+	 * @param anchor the anchor where the cell is to be placed
+	 * @throws NullPointerException if {@code cell} or {@code anchor} is null
+	 * @throws DesignAssemblyException if the cell is not in the design
+	 * @throws DesignAssemblyException if the cell is already placed
+	 * @throws DesignAssemblyException if the cell cannot be placed at the desired location
 	 */
 	public void placeCell(Cell cell, Bel anchor) {
 		Objects.requireNonNull(cell);
 		Objects.requireNonNull(anchor);
 		if (cell.getDesign() != this)
-			throw new Exceptions.DesignAssemblyException("Cannot place cell not in the design.");
+			throw new DesignAssemblyException("Cannot place cell not in the design.");
 		if (cell.isPlaced())
-			throw new Exceptions.DesignAssemblyException("Cannot re-place cell.");
+			throw new DesignAssemblyException("Cannot re-place cell.");
 
 		List<Bel> requiredBels = cell.getLibCell().getRequiredBels(anchor);
 		if (!canPlaceCellAt_impl(requiredBels))
-			throw new Exceptions.DesignAssemblyException("Cell already placed at location.");
+			throw new DesignAssemblyException("Cell already placed at location.");
 
 		placeCell_impl(cell, anchor, requiredBels);
 	}
@@ -469,15 +545,17 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Unplaces the cell in this design.  The cell must be placed in this design
-	 * and not be a part of a relatively-placed molecule.
+	 * Unplaces the cell in this design.  After this call, the BELs occupied by the
+	 * cell will be unused.
 	 *
 	 * @param cell the cell to unplace.
+	 * @throws NullPointerException if {@code cell} is null
+	 * @throws DesignAssemblyException if {@code cell} is not in this design
 	 */
 	public void unplaceCell(Cell cell) {
 		Objects.requireNonNull(cell);
 		if (cell.getDesign() != this)
-			throw new Exceptions.DesignAssemblyException("Cannot unplace cell not in the design.");
+			throw new DesignAssemblyException("Cannot unplace cell not in the design.");
 
 		unplaceCell_impl(cell);
 	}
@@ -506,16 +584,28 @@ public class CellDesign extends AbstractDesign {
 		}
 	}
 
+	/**
+	 * Map containing the PIPs used at a site.
+	 * TODO I need Thomas to document this.  I don't know what this method does.
+	 * @param ps the site
+	 * @param usedWires the used wires at a site
+	 */
 	public void setUsedSitePipsAtSite(Site ps, HashSet<Integer> usedWires) {
 		this.usedSitePipsMap.put(ps, usedWires);
 	}
 
+	/**
+	 * Thomas needs to document this
+	 * @param ps the site
+	 * @return the PIPs used at the site
+	 */
 	public  Set<Integer> getUsedSitePipsAtSite(Site ps) {
 		return this.usedSitePipsMap.getOrDefault(ps, Collections.emptySet());
 	}
 
 	/**
-	 * Returns a list of XDC contraints on the design.
+	 * Returns a list of XDC constraints on the design.
+	 * @return the xdc constraints for this design
 	 */
 	public List<XdcConstraint> getVivadoConstraints() {
 		return this.vivadoConstraints;
@@ -534,7 +624,8 @@ public class CellDesign extends AbstractDesign {
 	}
 	
 	/**
-	 * Unplaces the design.  The design is first unrouted.
+	 * Unplaces the design.  The design is first unrouted and then all cells
+	 * are unplaced.
 	 */
 	public void unplaceDesign() {
 		unrouteDesign();
@@ -542,6 +633,10 @@ public class CellDesign extends AbstractDesign {
 		getCells().forEach(this::unplaceCell_impl);
 	}
 
+	/**
+	 * Creates and returns a deep copy of this design.
+	 * @return a deep copy of this design
+	 */
 	public CellDesign deepCopy() {
 		CellDesign designCopy = new CellDesign();
 		designCopy.setName(getName());

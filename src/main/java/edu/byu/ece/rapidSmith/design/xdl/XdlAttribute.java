@@ -22,18 +22,19 @@ package edu.byu.ece.rapidSmith.design.xdl;
 import java.io.Serializable;
 
 /**
+ * <p>
  * The Attribute object in XDL is used in several places, Design, Instance, Net 
  * and Module.  Each are generally a list of attributes.  An attribute in XDL consists
  * of a triplet of Strings separated by colons: "Physical Name":"Logical Name":"Value".
  * This class captures these elements of an attribute. 
- * 
+ * </p><p>
  * In XDL, the physical name of an attribute can have multiple logical names and/or values
  * for a single "physical name". To represent multiple logical names and values 
  * in a standard Map, the multiple logical and value strings are stored in a single
  * string and are separated by the final multiValueSeparator character. A variety
  * of methods are available for determining whether the attribute is multi-valued
  * and accesing the multi-value fields.
- * 
+ * </p>
  * @author Chris Lavin
  * Created on: Jun 22, 2010
  */

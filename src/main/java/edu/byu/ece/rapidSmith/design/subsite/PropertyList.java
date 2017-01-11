@@ -111,7 +111,7 @@ public final class PropertyList implements Iterable<Property> {
 	 * Removes the property <i>propertyKey</i>.  Returns the removed property.
 	 *
 	 * @param propertyKey the name of the property to remove
-	 * @return the removed property. null if the property doesn't exist
+	 * @return the removed property or null if the property doesn't exist
 	 */
 	public Property remove(Object propertyKey) {
 		Objects.requireNonNull(propertyKey);

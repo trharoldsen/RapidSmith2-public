@@ -30,7 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- *  Pin on a LibraryCell.
+ *  Pin on a {@link LibraryCell}.  {@code LibraryPin}s provide the backing for
+ *  {@link BackedCellPin}s and define the directions of the pins and their possible
+ *  BelPin mappings.
  */
 public final class LibraryPin implements Serializable {
 	
@@ -47,98 +49,96 @@ public final class LibraryPin implements Serializable {
 
 	/** Type of the LibraryPin. See {@link CellPinType} for the possible types.*/ 
 	private CellPinType pinType;
-	
+
+	/**
+	 * Constructs an empty {@code LibraryPin}.
+	 */
 	public LibraryPin() {
 		possibleBelPins = new HashMap<>();
 	}
 
-	public LibraryPin(String name) {
-		this.name = name;
-		possibleBelPins = new HashMap<>();
-	}
-
-	public LibraryPin(String name, LibraryCell libCell, PinDirection direction) {
-		this.name = name;
-		this.libraryCell = libCell;
-		this.direction = direction;
-		possibleBelPins = new HashMap<>();
-	}
-
 	/**
-	 * @return name of the pin (ie I1, I2, O...)
+	 * Returns the name of this pin.
+	 * @return name of this pin (ie I1, I2, O...)
 	 */
 	public String getName() {
 		return name;
 	}
 
 	/**
-	 * @param name name of the pin
+	 * Sets the name of this pin
+	 * @param name name of this pin
 	 */
 	public void setName(String name) {
 		this.name = name;
 	}
 
 	/**
-	 * @return the <code>LibraryCell</code> this pin resides on
+	 * Returns the {@code LibraryCell} this pin exists on.
+	 * @return the {@code LibraryCell} this pin exists on
 	 */
 	public LibraryCell getLibraryCell() {
 		return libraryCell;
 	}
 
 	/**
-	 * @param libraryCell the <code>LibraryCell</code> this pin resides on
+	 * Sets the {@code LibraryCell} this pin exists on.
+	 * @param libraryCell the {@code LibraryCell} this pin exists on
 	 */
 	public void setLibraryCell(LibraryCell libraryCell) {
 		this.libraryCell = libraryCell;
 	}
 
 	/**
-	 * @return the direction of the pin relative to its <code>LibraryCell</code>
+	 * The direction of the pin relative to outside the cell.
+	 * @return the direction of the pin relative to outside the cell
 	 */
 	public PinDirection getDirection() {
 		return direction;
 	}
 
 	/**
-	 * @param direction the direction of the pin relative to its <code>LibraryCell</code>
+	 * Sets the direction of the pin.  The direction is relative to outside the cell.
+	 * @param direction the direction of this pin relative to outside the cell
 	 */
 	public void setDirection(PinDirection direction) {
 		this.direction = direction;
 	}
 
 	/**
-	 * Sets the type  of LibraryPin. See {@link CellPinType} for the possible
+	 * Sets the type of {@code LibraryPin}. See {@link CellPinType} for the possible
 	 * pin types. 
 	 * 
-	 * @param type CellPinType
+	 * @param type the type of {@code LibraryPin}
 	 */
 	public void setPinType(CellPinType type) {
 		pinType = type;
 	}
 	
 	/**
-	 * @return The {@link CellPinType} of this LibraryPin
+	 * Returns the type of this LibraryPin.
+	 * @return the {@link CellPinType} of this LibraryPin
 	 */
 	public CellPinType getPinType() {
 		return pinType;
 	}
 	
 	/**
-	 * Returns a <code>Map</code> of <code>BelIdentifiers</code> the <code>LibraryCell</code>
-	 * can be placed on to a <code>List</code> of names of <code>BelPins</code> on such BELs
+	 * Returns a {@code Map} of {@code BelId} the {@code LibraryCell}
+	 * can be placed on to a {@code List} of names of {@code BelPins} on such BELs
 	 * that this pin can be placed onto.
-	 * @return possible <code>BelPins</code> this library pin can map to for each possible
-	 * <code>BelIdentifier</code>
+	 * @return possible {@code BelPins} this library pin can map to for each possible
+	 * {@code BelId}
 	 */
 	public Map<BelId, List<String>> getPossibleBelPins() {
 		return possibleBelPins;
 	}
 
 	/**
-	 * Returns a <code>List</code> of names of <code>BelPins</code> on BELs of type <code>belName</code>
+	 * Returns a {@code List} of names of {@code BelPins} on BELs of type {@code belName}
 	 * that this pin can be placed onto.
-	 * @param belId <code>BelName</code> to get possible pins for
-	 * @return list of possible BelPins on <code>belName</code>
+	 * @param belId {@code BelName} to get possible pins for
+	 * @return list of possible BelPins on {@code belName}
 	 */
 	public List<String> getPossibleBelPins(BelId belId) {
 		return possibleBelPins.get(belId);
@@ -152,6 +152,11 @@ public final class LibraryPin implements Serializable {
 		this.possibleBelPins = possibleBelPins;
 	}
 
+	/**
+	 * LibraryPins are equal if they have the same name and LibraryCell.
+	 * @param o the pin to compare to
+	 * @return true if the pins are equivalent
+	 */
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;

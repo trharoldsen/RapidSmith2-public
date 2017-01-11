@@ -29,7 +29,7 @@ import java.util.Map;
 public final class PropertyType {
 	private static final Map<String, PropertyType> propertyTypes = new HashMap<>();
 
-	/** A property stemming from XDL */
+	/** A property describing the configuration of the element */
 	public static final PropertyType DESIGN = registerType("DESIGN");
 	/** Properties specified by the user for personal storage */
 	public static final PropertyType USER = registerType("USER");
@@ -61,12 +61,14 @@ public final class PropertyType {
 	/**
 	 * Returns the property with the given name or null if the property is not
 	 * registered.
+	 * @param propertyName the name of the property type to retrieve
+	 * @return the property with the given name or null if the property is not registered
 	 */
 	public static PropertyType get(String propertyName) {
 		return propertyTypes.get(propertyName);
 	}
 
-	@java.lang.Override
+	@Override
 	public java.lang.String toString() {
 		return "PropertyType{" +
 				"name='" + name + '\'' +

@@ -25,21 +25,35 @@ import edu.byu.ece.rapidSmith.device.SiteType;
 import java.util.Objects;
 
 /**
- *
+ * Control set properties for the entire site.  Any site properties must be
+ * configured uniformly for all cells in a site.
  */
 public class SiteProperty {
 	private final SiteType siteType;
 	private final String propertyName;
 
+	/**
+	 * Creates a new SiteProperty.
+	 * @param siteType the type of the site this property exists for
+	 * @param propertyName the name of the property
+	 */
 	public SiteProperty(SiteType siteType, String propertyName) {
 		this.siteType = siteType;
 		this.propertyName = propertyName;
 	}
 
+	/**
+	 * Returns the SiteType this property exists for
+	 * @return the SiteType this property exists for
+	 */
 	public SiteType getSiteType() {
 		return siteType;
 	}
 
+	/**
+	 * Returns the name of the property.
+	 * @return the name of the property
+	 */
 	public String getPropertyName() {
 		return propertyName;
 	}

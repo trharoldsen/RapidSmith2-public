@@ -23,25 +23,25 @@ import java.io.Serializable;
 import java.util.Objects;
 
 /**
- * This class represents the programmable-interconnect-points (PIPs) as found
- * in XDL designs.  The wire names are stored as integers using the WireEnumerator
- * found in the edu.byu.ece.rapidSmith.device class.
- *
- * @author Chris Lavin
- *         Created on: Jun 22, 2010
+ * <p>
+ * A programmable-interconnect-point (PIPs).  This is a connection between two wires
+ * that can be turned on or off in the device.  The start and end wires in PIPs always
+ * exist in the same tile.
+ * </p><p>
+ * PIPs objects are created by the user.  The PIPs are used primarily in the XDL
+ * {@link edu.byu.ece.rapidSmith.design.xdl.XdlNet} class to describe the physical
+ * route of a device.  No checking is performed that the connection between wires in
+ * the PIP actually exists in the device nor that the connection is in fact a PIP.
+ * </p>
  */
 public final class PIP implements Serializable {
 	private static final long serialVersionUID = 122367735864726588L;
-	private Wire startWire;
-	private Wire endWire;
-
-	public PIP(PIP other) {
-		this.startWire = other.startWire;
-		this.endWire = other.endWire;
-	}
+	private final Wire startWire;
+	private final Wire endWire;
 
 	/**
-	 * Constructs a new PIP.
+	 * Constructs a new PIP from the given wires.  No checking is performed to ensure
+	 * that {@code startWire} and {@code endWire} are part of a PIP in the device.
 	 *
 	 * @param startWire the start wire of this PIP
 	 * @param endWire the end wire of this PIP
@@ -60,16 +60,16 @@ public final class PIP implements Serializable {
 	}
 
 	/**
-	 * Returns the enumeration of the start wire of this PIP.
+	 * Returns the wire driving this PIP.
 	 *
-	 * @return the start wire enumeration
+	 * @return the start wire of this PIP
 	 */
 	public Wire getStartWire() {
 		return startWire;
 	}
 
 	/**
-	 * Returns the enumeration of the end wire of this PIP.
+	 * Returns the wire driven by this PIP.
 	 *
 	 * @return the end wire of this PIP
 	 */
@@ -78,7 +78,9 @@ public final class PIP implements Serializable {
 	}
 
 	/**
-	 * @return the tile the PIP is in
+	 * Returns the tile this PIP is in.
+	 *
+	 * @return the tile this PIP is in
 	 */
 	public Tile getTile() {
 		return startWire.getTile();
@@ -90,7 +92,7 @@ public final class PIP implements Serializable {
 	}
 
 	/**
-	 * PIPs are equal if they have the same tile, start wire, and end wire.
+	 * PIPs are equal if they have the same start and end wires.
 	 */
 	@Override
 	public boolean equals(Object obj) {
@@ -107,10 +109,9 @@ public final class PIP implements Serializable {
 	}
 
 	/**
-	 * Creates a string representation of this PIP using the WireEnumerator
-	 * class.
+	 * Creates an XDL-compatible string representation of this PIP.
 	 *
-	 * @return An XDL-compatible string of this PIP
+	 * @return an XDL-compatible string of this PIP
 	 */
 	public String toString() {
 		return "pip " + startWire.getTile().getName() + " " + startWire.getWireName() +
