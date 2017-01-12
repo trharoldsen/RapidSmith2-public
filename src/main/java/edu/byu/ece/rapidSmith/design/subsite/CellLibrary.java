@@ -24,6 +24,7 @@ import edu.byu.ece.rapidSmith.device.BelId;
 import edu.byu.ece.rapidSmith.device.FamilyType;
 import edu.byu.ece.rapidSmith.device.PinDirection;
 import edu.byu.ece.rapidSmith.device.SiteType;
+import edu.byu.ece.rapidSmith.util.Exceptions;
 import edu.byu.ece.rapidSmith.util.Exceptions.FileFormatException;
 import edu.byu.ece.rapidSmith.util.Exceptions.ParseException;
 import org.jdom2.Document;
@@ -36,9 +37,8 @@ import java.nio.file.Path;
 import java.util.*;
 
 /**
- * A library of of {@link LibraryCell}s.  This class contains the different types of
- * cells that can be used in a design.
- * @see LibraryCell
+ * A library of {@link LibraryCell}s.  This class allows for retrieving a cell by
+ * name.  A cell library can be loaded from a cell library XML file.
  */
 public class CellLibrary implements Iterable<LibraryCell> {
 	private final Map<String, LibraryCell> library;
@@ -54,8 +54,10 @@ public class CellLibrary implements Iterable<LibraryCell> {
 	}
 
 	/**
-	 * Constructs a CellLibrary with LibraryCells loaded from the provided XML file.
-	 * @param filePath path to the XML file containing the LibraryCells
+	 * Constructs a {@code CellLibrary} and populates it with library cells loaded from
+	 * the provided XML file.
+	 *
+	 * @param filePath path to the XML file containing the library cells
 	 * @throws IOException if an error occurs opening or reading the file
 	 * @throws ParseException if an error occurs parsing the XML
 	 * @throws FileFormatException if the file is improperly formatted
@@ -67,7 +69,7 @@ public class CellLibrary implements Iterable<LibraryCell> {
 			loadFromFile(filePath);
 		} catch (JDOMException e) {
 			// wrap the JDOMException in a generic parse exception
-			throw new Exceptions.ParseException(e);
+			throw new ParseException(e);
 		}
 	}
 
@@ -102,7 +104,6 @@ public class CellLibrary implements Iterable<LibraryCell> {
 		
 		this.familyType = FamilyType.valueOf(familyEl.getValue()); 
 	}
-	
 
 	private void loadCellFromXml(
 			Element cellEl, Map<SiteType, Map<String, SiteProperty>> sitePropertiesMap
@@ -256,36 +257,36 @@ public class CellLibrary implements Iterable<LibraryCell> {
 	}
 
 	/**
-	 * Returns the VCC source {@code LibraryCell} for this library.
-	 * @return the VCC source {@code LibraryCell} for this library.
+	 * Returns the VCC source library cell for this library.
+	 * @return the VCC source library cell for this library
 	 */
 	public LibraryCell getVccSource() {
 		return vccSource;
 	}
 
 	/**
-	 * Returns the GND source {@code LibraryCell} for this library.
-	 * @return the GND source {@code LibraryCell} for this library.
+	 * Returns the GND source library cell for this library.
+	 * @return the GND source library cell for this library
 	 */
 	public LibraryCell getGndSource() {
 		return gndSource;
 	}
 
 	/**
-	 * Returns true if this library contains a {@code LibraryCell} with
-	 * name {@code cellName}.
-	 * @param cellName the name of the {@code LibraryCell}
-	 * @return true if this library contains a {@code LibraryCell} with name
-	 *    {@code cellName}, else false
+	 * Returns {@code true} if this library contains a library cell with name
+	 * {@code cellName}.
+	 * @param cellName the name of the library cell to check for
+	 * @return {@code true} if this library contains a library cell with name
+	 *    {@code cellName}
 	 */
 	public boolean contains(String cellName) {
 		return library.containsKey(cellName);
 	}
 
 	/**
-	 * Returns the {@code LibraryCell} in this library with name {@code cellName}.
-	 * @param cellName name of the {@code LibraryCell} to get
-	 * @return the {@code LibraryCell} with name {@code cellName} or null if it
+	 * Returns the library cell in this library with name {@code cellName}.
+	 * @param cellName name of the library cell to get
+	 * @return the library cell with name {@code cellName} or null if it
 	 *     does not exist
 	 */
 	public LibraryCell get(String cellName) {
@@ -293,10 +294,10 @@ public class CellLibrary implements Iterable<LibraryCell> {
 	}
 
 	/**
-	 * Adds the {@code LibraryCell} to this library.  Overwrites any previous
-	 * {@code LibraryCell} with this name.
-	 * @param libraryCell the {@code LibraryCell} to add
-	 * @throws NullPointerException if {@code libraryCell} is null
+	 * Adds the library cell to this library.  Overwrites any previous
+	 * library cell with this name.
+	 * @param libraryCell the library cell to add
+	 * @throws NullPointerException if {@code libraryCell} is {@code null}
 	 */
 	public void add(LibraryCell libraryCell) {
 		Objects.requireNonNull(libraryCell);
@@ -304,9 +305,9 @@ public class CellLibrary implements Iterable<LibraryCell> {
 	}
 
 	/**
-	 * Adds all {@code LibraryCell}s in the provided collection to this library.
-	 * @param libraryCells collection of {@code LibraryCell}s to add
-	 * @throws NullPointerException if {@code libraryCells} or any of its elements are null
+	 * Adds all library cells in the provided collection to this library.
+	 * @param libraryCells collection of library cells to add
+	 * @throws NullPointerException if {@code libraryCells} or any of its elements are {@code null}
 	 */
 	public void addAll(Collection<LibraryCell> libraryCells) {
 		for (LibraryCell cell : libraryCells) {
@@ -315,9 +316,9 @@ public class CellLibrary implements Iterable<LibraryCell> {
 	}
 
 	/**
-	 * Removes the {@code LibraryCell} with the given name from this library.  If no
-	 * such {@code LibraryCell} exists, does nothing.
-	 * @param cellName name of the {@code LibraryCell} to remove
+	 * Removes the library cell with name {@code cellName} from this library.  If no
+	 * such library cell exists, does nothing.
+	 * @param cellName name of the library cell to remove
 	 */
 	public void remove(String cellName) {
 		library.remove(cellName);
