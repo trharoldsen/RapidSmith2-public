@@ -21,11 +21,10 @@
 package edu.byu.ece.rapidSmith.design.subsite;
 
 import edu.byu.ece.rapidSmith.design.NetType;
-import edu.byu.ece.rapidSmith.device.PIP;
 import edu.byu.ece.rapidSmith.device.BelPin;
+import edu.byu.ece.rapidSmith.device.PIP;
 import edu.byu.ece.rapidSmith.device.PinDirection;
 import edu.byu.ece.rapidSmith.device.SitePin;
-import edu.byu.ece.rapidSmith.util.Exceptions;
 import edu.byu.ece.rapidSmith.util.Exceptions.DesignAssemblyException;
 
 import java.io.Serializable;
@@ -33,16 +32,18 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- *  Represents a net in a cell design.  {@code CellNet}s connect the
- *  {@link CellPin}s on cells to one another.  The {@code CellNets} may optionally
- *  contain physical routing information in the form of {@link RouteTree}s.
- *
- *  Typically {@code CellNet}s contain only a single source pin.  GND and VCC nets
- *  for unplaced circuits typically contain no source pins.  In cases involving
- *  tri-state IO, {@code CellNet}s, can contain multiple source pins.  In this case,
- *  only one of the pins can be designated as an output pin and all other sources
- *  must be an inout pin.  When an output pin exists, it is designated as the source; when
- *  absent, the source is one of the inout pins.
+ * <p>
+ * Represents a net in a {@code CellDesign}.  {@code CellNets} connect the
+ * cell pins to one another.  The nets may optionally contain physical routing
+ * information in the form of {@link RouteTree}s.
+ * </p><p>
+ * Typically {@code CellNets} contain only a single source pin.  GND and VCC nets
+ * for unplaced circuits typically contain no source pins.  In cases involving
+ * tri-state IO, {@code CellNets}, may contain multiple source pins.  In this case,
+ * only one of the pins can be designated as an output pin and all other sources
+ * must be inout pins.  When an output pin exists, it is designated as the source; when
+ * absent, the source is one of the inout pins.
+ * </p>
  */
 public class CellNet implements Serializable {
 	
@@ -83,7 +84,7 @@ public class CellNet implements Serializable {
 	 * Creates a new net with the given name and type.
 	 *
 	 * @param name the name for the net
-	 * @param type the type for this net
+	 * @param type the type for the net
 	 */
 	public CellNet(String name, NetType type) {
 		Objects.requireNonNull(name);
@@ -100,27 +101,23 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Returns the name of the net.  The name is immutable.
-	 *
-	 * @return the name of the net
+	 * Returns the name of this net.
+	 * @return the name of this net
 	 */
 	public String getName() {
 		return name;
 	}
 
 	/**
-	 * Returns the type of this net.  The {@link NetType} defines the use case of
-	 * this net.
+	 * Returns the type of this net.  The type defines the use case of this net.
 	 * @return the type of this net
-	 * @see NetType
 	 */
 	public NetType getType() {
 		return type;
 	}
 
 	/**
-	 * Sets the type of this net.  The {@link NetType} defines the use case of
-	 * this net.
+	 * Sets the type of this net.  The type defines the use case of this net.
 	 * @param type the new type for this net
 	 * @see NetType
 	 */
@@ -129,18 +126,16 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Returns true if this net is in a design.
-	 *
-	 * @return true if this net is in a design
+	 * Returns {@code true} if this net is in a design.
+	 * @return {@code true} if this net is in a design
 	 */
 	public boolean isInDesign() {
 		return design != null;
 	}
 
 	/**
-	 * Returns the design this net is a part of.
-	 *
-	 * @return the design the net is a part of or null if it is not in a design
+	 * Returns the design this net is a part of or {@code null} if it is not in a design.
+	 * @return the design the net is a part of or {@code null} if it is not in a design
 	 */
 	public CellDesign getDesign() {
 		return design;
@@ -151,7 +146,7 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Returns the properties of this net in a {@link PropertyList}.
+	 * Returns the properties of this net.
 	 * @return a {@code PropertyList} containing the properties of this net
 	 */
 	public final PropertyList getProperties() {
@@ -161,16 +156,15 @@ public class CellNet implements Serializable {
 	/**
 	 * Returns the pins (source and sinks) of this net.  The returned collection is
 	 * unmodifiable.
-	 *
-	 * @return a collection of the pins of this net
+	 * @return an unmodifiable collection of the pins of this net
 	 */
 	public Collection<CellPin> getPins() {
 		return Collections.unmodifiableCollection(pins);
 	}
 
 	/**
-	 * Builds and returns a {@link List} of the sink pins of the net.
-	 * 
+	 * Builds and returns a list of the sink pins of the net.  This list is built on
+	 * demand.
 	 * @return a list of the sinks of the net
 	 */
 	public List<CellPin> getSinkPins() {
@@ -180,19 +174,18 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Checks if this net has a source pin.
-	 *
-	 * @return true if this net has a source pin, else false
+	 * Tests if this net has a source pin.
+	 * @return {@code true} if this net has a source pin, else false
 	 */
 	public boolean isSourced() {
 		return getSourcePin() != null;
 	}
 
 	/**
-	 * Returns the source of this net.  The source is the output pin in the net or
-	 * if no outpin exists, then one of the inout pins.
-	 *
-	 * @return the source of this net, or null if this net has no source
+	 * Returns the source of this net or {@code null} if this net has no source.  The
+	 * source is the output pin in the net or if no outpin exists, then one of the
+	 * inout pins.
+	 * @return the source of this net or {@code null} if this net has no source
 	 */
 	public CellPin getSourcePin() {
 		return sourcePin;
@@ -200,8 +193,7 @@ public class CellNet implements Serializable {
 
 	/**
 	 * Builds and returns a list of all of the pins that source the net including
-	 * the inout pins.
-	 *
+	 * the inout pins.  This list is built on demand.
 	 * @return all of the pins that source the net
 	 */
 	public List<CellPin> getAllSourcePins() {
@@ -211,10 +203,9 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Checks if this net contains multiple source pins.  This can be true only
+	 * Tests if this net contains multiple source pins.  This can be {@code true} only
 	 * if this net contains inout pins.
-	 *
-	 * @return true if this net contains multiple source pins, else false
+	 * @return {@code true} if this net contains multiple source pins
 	 */
 	public boolean isMultiSourced() {
 		return getAllSourcePins().size() > 1;
@@ -224,7 +215,7 @@ public class CellNet implements Serializable {
 	 * Connects this net to all pins in the given collection.
 	 *
 	 * @param pinsToAdd the collection of pins to add
-	 * @throws NullPointerException if {@code pinsToAdd} or any of its elements is null
+	 * @throws NullPointerException if {@code pinsToAdd} or any of its elements are {@code null}
 	 */
 	public void connectToPins(Collection<CellPin> pinsToAdd) {
 		Objects.requireNonNull(pinsToAdd);
@@ -233,13 +224,15 @@ public class CellNet implements Serializable {
 	}
 		
 	/**
-	 * Adds a pin to this net.  It is an error to add multiple output pins
+	 * Connects {@code pin} to this net.  This method updates this net and {@code pin}
+	 * to reflect this connection.  Also updates the source pin of this net if
+	 * {@code pin} is a source pin.  It is an error to add multiple output pins
 	 * (excluding inout pins).
 	 *
 	 * @param pin the new pin to add
-	 * @throws NullPointerException if {@code pin} is null
-	 * @throws DesignAssemblyException if the pin is already connected to a net
-	 * @throws DesignAssemblyException if this net already connects to an output pin
+	 * @throws NullPointerException if {@code pin} is {@code null}
+	 * @throws DesignAssemblyException if {@code pin} is already connected to a net or
+	 *    if {@code pin} is an output pin and this net already connects to an output pin
 	 */
 	public void connectToPin(CellPin pin) {
 		Objects.requireNonNull(pin);
@@ -278,10 +271,10 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Removes all pins from the given connection from this net.
-	 * 
+	 * Removes all pins from the given collection from this net.
 	 * @param pins collection of pins to remove
-	 * @throws NullPointerException if {@code pins} is null
+	 * @throws NullPointerException if {@code pins} or any of its elements
+	 *    are {@code null}
 	 */
 	public void disconnectFromPins(Collection<CellPin> pins) {
 		pins.forEach(this::disconnectFromPin);
@@ -291,7 +284,7 @@ public class CellNet implements Serializable {
 	 * Tests if the specified pin is attached to this net.
 	 * 
 	 * @param pin pin to test
-	 * @return true if the pin is attached to the net, else false
+	 * @return {@code true} if the pin is attached to the net, else false
 	 */
 	public boolean isConnectedToPin(CellPin pin) {
 		return pins.contains(pin);
@@ -312,7 +305,7 @@ public class CellNet implements Serializable {
 	 * does nothing.
 	 *
 	 * @param pin the pin to remove
-	 * @throws NullPointerException if {@code pin} is null
+	 * @throws NullPointerException if {@code pin} is {@code null}
 	 */
 	public void disconnectFromPin(CellPin pin) {
 		Objects.requireNonNull(pin);
@@ -351,7 +344,7 @@ public class CellNet implements Serializable {
 	 * Checks if a net is a clk net and should use the clock routing resources.
 	 * More specifically, checks if the pins connected to this net are of {@link CellPinType#CLOCK}.
 	 *
-	 * @return true if this net is a clock net
+	 * @return {@code true} if this net is a clock net
 	 */
 	public boolean isClkNet() {
 		
@@ -365,8 +358,8 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Returns true if the net is a VCC (logic high) net
-	 * @return true if the net is a VCC net, else false
+	 * Returns {@code true} if the net is a VCC (logic high) net
+	 * @return {@code true} if the net is a VCC net, else false
 	 */
 	public boolean isVCCNet() {
 
@@ -374,8 +367,8 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Returns true if the net is a GND (logic low) net
-	 * @return true if the net is a GND net, else false
+	 * Returns {@code true} if the net is a GND (logic low) net
+	 * @return {@code true} if the net is a GND net, else false
 	 */
 	public boolean isGNDNet() {
 
@@ -410,11 +403,11 @@ public class CellNet implements Serializable {
 	}
 
 	/**
-	 * Returns true if this net is either a VCC or GND net.  Static nets behave
+	 * Returns {@code true} if this net is either a VCC or GND net.  Static nets behave
 	 * differently from other nets, ie static nets may not have a source pin and
 	 * a design often has only a single VCC and a single GND net.
 	 * 
-	 * @return true if this net is VCC or GND, else false
+	 * @return {@code true} if this net is VCC or GND, else false
 	 */
 	public boolean isStaticNet() {
 		return type == NetType.VCC || type == NetType.GND;
@@ -470,7 +463,7 @@ public class CellNet implements Serializable {
 	 * Marks the net as intrasite (completely contained within a site) or not
 	 * (stretches across site boundaries).
 	 * 
-	 * @param isIntrasite true if the net is fully contained within a site, false otherwise
+	 * @param isIntrasite {@code true} if the net is fully contained within a site, false otherwise
 	 */
 	public void setIsIntrasite(boolean isIntrasite) {
 		this.isIntrasite = isIntrasite;
@@ -479,7 +472,7 @@ public class CellNet implements Serializable {
 	/**
 	 * Returns whether the net is an intrasite net (completely contained within a site)
 	 * or not (stretches across site boundaries).
-	 * @return true if the net is an intrasite net, false otherwise
+	 * @return {@code true} if the net is an intrasite net, false otherwise
 	 */
 	public boolean isIntrasite() {
 		return isIntrasite;
@@ -550,7 +543,7 @@ public class CellNet implements Serializable {
 	 * Marks a cellPin attached to the net as unrouted. 
 	 * 
 	 * @param cellPin the cell pin to mark as unrouted
-	 * @return true if the cellPin was successfully removed or false if the cellPin was
+	 * @return {@code true} if the cellPin was successfully removed or false if the cellPin was
 	 * not marked as a routed pin of this net.
 	 */
 	public boolean removeRoutedSink(CellPin cellPin) {
@@ -593,7 +586,7 @@ public class CellNet implements Serializable {
 	 * locations).
 	 *  
 	 * @param intersite the RouteTree to add
-	 * @throws NullPointerException if {@code intersite} is null
+	 * @throws NullPointerException if {@code intersite} is {@code null}
 	 */
 	public void addIntersiteRouteTree(RouteTree intersite) {	
 		Objects.requireNonNull(intersite);
@@ -647,9 +640,9 @@ public class CellNet implements Serializable {
 	}
 	
 	/**
-	 * Returns true if the net has any intersite routing defined.
+	 * Returns {@code true} if the net has any intersite routing defined.
 	 *
-	 * @return true if this net has any intersite routing, else false
+	 * @return {@code true} if this net has any intersite routing, else false
 	 */
 	public boolean hasIntersiteRouting() {
 		return intersiteRoutes != null && intersiteRoutes.size() > 0;
@@ -702,7 +695,7 @@ public class CellNet implements Serializable {
 	 * Returns a set of the {@link SitePin}s that the net is currently passing through.
 	 * The returned set is unmodifiable.
 	 * @return a set of the {@code SitePin}s that the net is currently passing through
-	 * or null if no SitePins are used
+	 * or {@code null} if no SitePins are used
 	 */
 	public Set<SitePin> getSitePins() {
 		return sitePinToRTMap == null ? null :
@@ -742,7 +735,7 @@ public class CellNet implements Serializable {
 	 * to a single BelPin.
 	 * 
 	 * @param cellPin the sink CellPin
-	 * @return a RouteTree that is connected to the specified CellPin or null if no
+	 * @return a RouteTree that is connected to the specified CellPin or {@code null} if no
 	 *    RouteTree connectes to the CellPin
 	 * @see #getSinkRouteTrees(CellPin)
 	 */
@@ -777,7 +770,7 @@ public class CellNet implements Serializable {
 	 * Returns the RouteTree connected to the specified BelPin of this net
 	 * 
 	 * @param belPin the input BelPin
-	 * @return a {@code RouteTree} that connects to a {@code belPin} or null if the belPin
+	 * @return a {@code RouteTree} that connects to a {@code belPin} or {@code null} if the belPin
 	 * 		does not attach this net
 	 */
 	public RouteTree getSinkRouteTree(BelPin belPin) {
