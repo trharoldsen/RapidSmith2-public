@@ -19,6 +19,7 @@
  */
 
 /**
- * Contains classes for representing a Cell-based design.
+ * Contains classes for representing a Cell-based design.  See the chapter 5 of
+ * the Tech Report for more information.
  */
 package edu.byu.ece.rapidSmith.design.subsite;
