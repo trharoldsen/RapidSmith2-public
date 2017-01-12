@@ -23,7 +23,6 @@ package edu.byu.ece.rapidSmith.design.subsite;
 import edu.byu.ece.rapidSmith.design.AbstractDesign;
 import edu.byu.ece.rapidSmith.device.Bel;
 import edu.byu.ece.rapidSmith.device.Site;
-import edu.byu.ece.rapidSmith.util.Exceptions;
 import edu.byu.ece.rapidSmith.interfaces.vivado.XdcConstraint;
 import edu.byu.ece.rapidSmith.util.Exceptions.DesignAssemblyException;
 
@@ -33,10 +32,11 @@ import java.util.*;
  * <p>
  * This class represents a cell-based logical netlist with optional placement
  * information.  Cells can be looked up in constant time by both name and location.
+ * </p><p>
  * Placement information of cells in the CellDesign are updated through calls to
- * {@link #placeCell(Cell, edu.byu.ece.rapidSmith.device.Bel)}.  The
- * placement information is stored in a two-level map of sites and
- * BELs allowing quick checking of cells located at both levels of hierarchy.
+ * {@link #placeCell(Cell, Bel)}.  The placement information is stored in a two-level
+ * map of sites and BELs allowing quick checking of cells located at both levels of
+ * hierarchy.
  * </p>
  */
 public class CellDesign extends AbstractDesign {
@@ -59,8 +59,8 @@ public class CellDesign extends AbstractDesign {
 	private List<XdcConstraint> vivadoConstraints;
 	
 	/**
-	 * Constructor which initializes all member data structures. Sets name and
-	 * partName to null.
+	 * Creates a new {@code CellDesign} with.  Sets name and partName fields to
+	 * {@code null}.
 	 */
 	public CellDesign() {
 		super();
@@ -72,8 +72,8 @@ public class CellDesign extends AbstractDesign {
 	 * Constructs a design and populates it with the given design name and partName
 	 * and loads the associated device.
 	 *
-	 * @param designName The name of the newly created design.
-	 * @param partName   The target part name of the newly created design.
+	 * @param designName the name of the created design
+	 * @param partName   the target part for the created design
 	 */
 	public CellDesign(String designName, String partName) {
 		super(designName, partName);
@@ -89,8 +89,8 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns the properties of this design in a {@link PropertyList}.  Properties
-	 * may contain metadata about a design including user-defined metadata.
+	 * Returns the properties of this design.  Properties may contain metadata about
+	 * a design including user-defined metadata.
 	 * @return a {@code PropertyList} containing the properties of this design
 	 */
 	public PropertyList getProperties() {
@@ -98,10 +98,10 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns true if this design has a cell with the specified name.
-	 * @param cellName the name of the cell to test for
-	 * @return true if this design ahas a cell with the specified name
-	 * @throws NullPointerException if {@code cellName} is null
+	 * Returns {@code true} if this design has a cell with the specified name.
+	 * @param cellName the name of a cell to test for
+	 * @return {@code true} if this design has a cell with the specified name
+	 * @throws NullPointerException if {@code cellName} is {@code null}
 	 */
 	public boolean hasCell(String cellName) {
 		Objects.requireNonNull(cellName);
@@ -118,7 +118,7 @@ public class CellDesign extends AbstractDesign {
 	 *
 	 * @param proposedName the proposed name for the cell
 	 * @return a unique cell name for this design
-	 * @throws NullPointerException if {@code proposedName} is null
+	 * @throws NullPointerException if {@code proposedName} is {@code null}
 	 */
 	public String getUniqueCellName(String proposedName) {
 		Objects.requireNonNull(proposedName);
@@ -136,11 +136,12 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns the cell in this design with the specified name.
+	 * Returns the cell in this design with name {@code cellName} or {@code null} if
+	 * this design has no cell with the name.
 	 *
 	 * @param cellName name of the cell to return
-	 * @return the cell, or null if it does not exist
-	 * @throws NullPointerException if {@code cellName} is null
+	 * @return the cell with the given name or {@code null} if it does not exist
+	 * @throws NullPointerException if {@code cellName} is {@code null}
 	 */
 	public Cell getCell(String cellName) {
 		Objects.requireNonNull(cellName);
@@ -149,28 +150,29 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns all of the cells in this design.  The returned collection is immutable.
-	 *
-	 * @return a collection containing the cells in this design
+	 * Returns all of the cells in this design.  The returned collection is
+	 * unmodifiable.
+	 * @return an unmodifiable collection containing the cells in this design
 	 */
 	public Collection<Cell> getCells() {
 		return Collections.unmodifiableCollection(cellMap.values());
 	}
 
 	/**
-	 * Adds a cell to this design.  The name of this added cell should be unique
-	 * to this design.  The cell should not be part of another design and should
-	 * not have any placement information.  Returns the added cell for convenience.
+	 * Adds cell {@code cell} to this design.  The name of the added cell should be
+	 * unique to this design.  The cell should not be part of another design and should
+	 * not have any placement information.  If the cell is already in this design,
+	 * this method does nothing.  Returns the added cell for convenience.
 	 *
 	 * @param cell the cell to add
 	 * @return the added cell
-	 * @throws NullPointerException if {@code cell} is null
-	 * @throws DesignAssemblyException if {@code cell} is already in a design or if a
-	 *     cell with the same name already exists in this design
+	 * @throws NullPointerException if {@code cell} is {@code null}
+	 * @throws DesignAssemblyException if {@code cell} is already in another design
+	 *    or if a cell with the same name already exists in this design
 	 */
 	public Cell addCell(Cell cell) {
 		Objects.requireNonNull(cell);
-		if (cell.isInDesign())
+		if (cell.isInDesign() && cell.getDesign() != this)
 			throw new DesignAssemblyException("Cell already in a design.");
 
 		if (hasCell(cell.getName()))
@@ -182,11 +184,12 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Disconnects and removes the specified cell from this design.
+	 * Disconnects and removes cell {@code cell} from this design.
 	 *
 	 * @param cell the cell in this design to remove
-	 * @throws NullPointerException if {@code cell} is null
+	 * @throws NullPointerException if {@code cell} is {@code null}
 	 * @throws DesignAssemblyException if cell is not in this design
+	 * @see #disconnectCell(Cell)
 	 */
 	public void removeCell(Cell cell) {
 		Objects.requireNonNull(cell);
@@ -203,11 +206,12 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Disconnects without removing the specified cell from this design.  This is
+	 * Disconnects cell {@code cell} without removing it from this design.  This is
 	 * accomplished by unplacing the cell and disconnecting all of its pins.
 	 *
 	 * @param cell the cell to disconnect from this design
-	 * @throws NullPointerException if {@code cell} is null
+	 * @throws NullPointerException if {@code cell} is {@code null}
+	 * @see #removeCell(Cell)
 	 */
 	public void disconnectCell(Cell cell) {
 		Objects.requireNonNull(cell);
@@ -230,10 +234,10 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns true if this design has a net with the specified name.
+	 * Returns {@code true} if this design has a net with name {@code netName}.
 	 * @param netName the name of the net to test for
-	 * @return true if this design has a net with the specified name
-	 * @throws NullPointerException if {@code netName} is null
+	 * @return {@code true} if this design has a net with the specified name
+	 * @throws NullPointerException if {@code netName} is {@code null}
 	 */
 	public boolean hasNet(String netName) {
 		Objects.requireNonNull(netName);
@@ -250,7 +254,7 @@ public class CellDesign extends AbstractDesign {
 	 *
 	 * @param proposedName the proposed name for the net
 	 * @return a unique net name for this design
-	 * @throws NullPointerException if {@code proposedName} is null
+	 * @throws NullPointerException if {@code proposedName} is {@code null}
 	 */
 	public String getUniqueNetName(String proposedName) {
 		if (!hasNet(proposedName))
@@ -267,11 +271,10 @@ public class CellDesign extends AbstractDesign {
 
 
 	/**
-	 * Returns the net in this design with the specified name.
-	 *
+	 * Returns the net in this design with name {@code netName}.
 	 * @param netName name of the net to return
-	 * @return the net with the specified name, or null if it does not exist
-	 * @throws NullPointerException if {@code netName} is null
+	 * @return the net with the specified name or {@code null} if it does not exist
+	 * @throws NullPointerException if {@code netName} is {@code null}
 	 */
 	public CellNet getNet(String netName) {
 		Objects.requireNonNull(netName);
@@ -281,20 +284,20 @@ public class CellDesign extends AbstractDesign {
 
 	/**
 	 * Returns all of the nets in the design.  The returned collection is unmodifiable.
-	 * @return a collection of all nets in the design
+	 * @return an unmodifiable collection of all nets in the design
 	 */
 	public Collection<CellNet> getNets() {
 		return Collections.unmodifiableCollection(netMap.values());
 	}
 
 	/**
-	 * Adds a net to this design.  The name of net must be unique to the design.  If
-	 * the net is VCC or GND, the VCC/GND net will be set to this net if not already
-	 * set.
+	 * Adds net {@code net} to this design.  The name of net must be unique to the
+	 * design.  If the net is VCC or GND, the VCC/GND net will be set to this net if
+	 * not already set.
 	 *
 	 * @param net the net to add.
 	 * @return the added net
-	 * @throws NullPointerException if {@code net} is null
+	 * @throws NullPointerException if {@code net} is {@code null}
 	 * @throws DesignAssemblyException if the name of the net is already used in the design
 	 */
 	public CellNet addNet(CellNet net) {
@@ -323,46 +326,53 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Removes a net from this design.  The net should already be fully disconnected
-	 * from the design and have no nets.  This method will update the VCC/GND nets if
-	 * necessary
+	 * <p>
+	 * Disconnects and removes net {@code net} from this design.  If this net is
+	 * not in this design, then the net will not be removed.  Returns {@code true} if
+	 * the net was removed from the design.
+	 * </p><p>
+	 * This method will update the VCC/GND nets with another VCC/GND net in the design
+	 * if any exists if necessary.
+	 * </p>
 	 *
 	 * @param net the net to remove from this design
-	 * @throws NullPointerException if {@code net} is null
-	 * @throws DesignAssemblyException if the net is not disconnected from the design
+	 * @throws NullPointerException if {@code net} is {@code null}
+	 * @see #disconnectNet(CellNet)
 	 */
-	public void removeNet(CellNet net) {
+	public boolean removeNet(CellNet net) {
 		Objects.requireNonNull(net);
 		if (net.getDesign() != this)
-			return;
-		if (!net.getPins().isEmpty())
-			throw new DesignAssemblyException("Cannot remove connected net.");
+			return false;
 
+		disconnectNet_impl(net);
 		removeNet_impl(net);
+		return true;
 	}
 
 	private void removeNet_impl(CellNet net) {
+		netMap.remove(net.getName());
 		net.setDesign(null);
-		
+
 		if (net.isVCCNet()) {
 			vccNet = null;
-			// TODO search to see if another VCC net exists in the design
+			vccNet = getNets().stream()
+					.filter(CellNet::isVCCNet)
+					.findAny().orElse(null);
 		}
 		else if (net.isGNDNet()) {
 			gndNet = null;
-			// TODO search to see if another GND net exists in the design
-		}
-		else {
-			netMap.remove(net.getName());
+			gndNet = getNets().stream()
+					.filter(CellNet::isGNDNet)
+					.findAny().orElse(null);
 		}
 	}
 
 	/**
-	 * Disconnects the specified net from this design without removing it.  This
-	 * method unroutes the net and disconnects it from all of its pins.
+	 * Disconnects net {@code net} from this design without removing it.  This method
+	 * unroutes the net and disconnects it from all of its pins.
 	 *
 	 * @param net the net to disconnect
-	 * @throws NullPointerException if {@code net} is null
+	 * @throws NullPointerException if {@code net} is {@code null}
 	 * @throws DesignAssemblyException if the net is not in the design
 	 */
 	public void disconnectNet(CellNet net) {
@@ -380,33 +390,33 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns the power(VCC) net of the design.  There may be more than one VCC
+	 * Returns the power (VCC) net of the design.  There may be more than one VCC
 	 * net in the design.  This will return one of them.  If there is no VCC net in
-	 * the design, this method returns null.
+	 * the design, this method returns {@code null}.
 	 * 
-	 * @return the VCC net in the design.
+	 * @return the VCC net in the design or {@code null} if this design has no VCC net
 	 */
 	public CellNet getVccNet() {
 		return vccNet;
 	}
 	
 	/**
-	 * Returns the ground(GND) net of the design.  There may be more than one GND
+	 * Returns the ground (GND) net of the design.  There may be more than one GND
 	 * net in the design.  This will return one of them.  If there is no GND net in
-	 * the design, this method returns null.
+	 * the design, this method returns {@code null}.
 	 *
-	 * @return the GND net in the design.
+	 * @return the GND net in the design or {@code null} if this design has no GND net
 	 */
 	public CellNet getGndNet() {
 		return gndNet;
 	}
 
 	/**
-	 * Returns the cell at the specified BEL in this design.
+	 * Returns the cell at BEL {@code bel} in this design.
 	 *
 	 * @param bel the BEL of interest
-	 * @return the cell at specified BEL, or null if the BEL is unoccupied
-	 * @throws NullPointerException if {@code bel} is null
+	 * @return the cell at specified BEL or {@code null} if the BEL is unoccupied
+	 * @throws NullPointerException if {@code bel} is {@code null}
 	 */
 	public Cell getCellAtBel(Bel bel) {
 		Objects.requireNonNull(bel);
@@ -418,12 +428,12 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns a collection of cells at the specified site in this design.  This
+	 * Returns a collection of cells at the specified site in this design.  The returned
 	 * collection is unmodifiable.  If no cells exist at the site, the returned
 	 * collection will be empty.
 	 *
 	 * @param site the site of the desired cells
-	 * @return the cells at the site
+	 * @return an unmodifiable collection of cells at the site
 	 */
 	public Collection<Cell> getCellsAtSite(Site site) {
 		Objects.requireNonNull(site);
@@ -438,10 +448,10 @@ public class CellDesign extends AbstractDesign {
 	 * Tests if the specified BEL is occupied in this design.
 	 *
 	 * @param bel the BEL to test
-	 * @return true if a cell is placed at the BEL
-	 * @throws NullPointerException if {@code bel} is null
+	 * @return {@code true} if a cell is placed at the BEL
+	 * @throws NullPointerException if {@code bel} is {@code null}
 	 */
-	public boolean isBelUsed(Bel bel) {
+	public boolean isBelOccupied(Bel bel) {
 		Objects.requireNonNull(bel);
 
 		Map<Bel, Cell> sitePlacementMap = placementMap.get(bel.getSite());
@@ -449,14 +459,13 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Tests if any BELs in the the specified site are occupied in
-	 * this design.
+	 * Tests if any BELs in the the specified site are occupied in this design.
 	 *
 	 * @param site the site to test
-	 * @return true if this design uses any BELs in site
-	 * @throws NullPointerException if {@code site} is null
+	 * @return {@code true} if this design uses any BELs in site
+	 * @throws NullPointerException if {@code site} is {@code null}
 	 */
-	public boolean isSiteUsed(Site site) {
+	public boolean isSiteOccupied(Site site) {
 		Objects.requireNonNull(site);
 
 		Map<Bel, Cell> sitePlacementMap = placementMap.get(site);
@@ -466,22 +475,23 @@ public class CellDesign extends AbstractDesign {
 	/**
 	 * Returns all of the sites which are homes to one or more cells in the design.
 	 * the returned collection is unmodifiable.
-	 * @return a collection to all sites used in the design
+	 * @return an unmodifiable collection to all sites used in the design
 	 */
 	public Collection<Site> getUsedSites() {
 		return Collections.unmodifiableCollection(placementMap.keySet());
 	}
 
 	/**
-	 * Tests if the cell can be placed at the {@link Bel} anchor.  If the cell
-	 * is non-hierarchical, this cell will check if {@code anchor} is used.
-	 * If the cell is hierarchical, this method will check all Bels required
-	 * to place the hierarchical cell.
+	 * Tests if {@code cell} can be placed at BEL {@code anchor}.  If {@code cell}
+	 * is a leaf cell, this method will check if {@code anchor} is unoccupied.
+	 * If the cell is a macro, this method will check if all BELs required to place
+	 * the macro are unoccupied.
 	 *
 	 * @param cell the cell to test placement for
 	 * @param anchor the anchor bel to test placement on
-	 * @return true if the cell can be placed at {@code anchor}, else false
-	 * @throws NullPointerException if {@code cell} or {@code anchor} is null
+	 * @return {@code true} if the cell can be placed at {@code anchor}
+	 * @throws NullPointerException if {@code cell} or {@code anchor} is {@code null}
+	 * @see Cell#getRequiredBels(Bel)
 	 */
 	public boolean canPlaceCellAt(Cell cell, Bel anchor) {
 		Objects.requireNonNull(cell);
@@ -492,22 +502,22 @@ public class CellDesign extends AbstractDesign {
 
 	private boolean canPlaceCellAt_impl(List<Bel> requiredBels) {
 		for (Bel bel : requiredBels) {
-			if (bel == null || isBelUsed(bel))
+			if (bel == null || isBelOccupied(bel))
 				return false;
 		}
 		return true;
 	}
 
 	/**
-	 * Places the {@code cell} in the design anchored at {@code anchor}.
-	 * The cell should not already be placed and the location should be unoccupied.
+	 * Places {@code cell} in the design anchored at {@code anchor}.  The cell should
+	 * not already be placed and all required BELs should be unoccupied.
 	 *
 	 * @param cell the cell to place
 	 * @param anchor the anchor where the cell is to be placed
-	 * @throws NullPointerException if {@code cell} or {@code anchor} is null
-	 * @throws DesignAssemblyException if the cell is not in the design
-	 * @throws DesignAssemblyException if the cell is already placed
-	 * @throws DesignAssemblyException if the cell cannot be placed at the desired location
+	 * @throws NullPointerException if {@code cell} or {@code anchor} is {@code null}
+	 * @throws DesignAssemblyException if {@code cell} is not in the design, is already
+	 *    placed or cannot be placed at the desired location
+	 * @see #canPlaceCellAt(Cell, Bel)
 	 */
 	public void placeCell(Cell cell, Bel anchor) {
 		Objects.requireNonNull(cell);
@@ -541,11 +551,11 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Unplaces the cell in this design.  After this call, the BELs occupied by the
-	 * cell will be unused.
+	 * Unplaces {@code cell} in this design.  After this call, the BELs occupied by
+	 * {@code cell} will be unused and {@code cell} will be unplaced.
 	 *
-	 * @param cell the cell to unplace.
-	 * @throws NullPointerException if {@code cell} is null
+	 * @param cell the cell to unplace
+	 * @throws NullPointerException if {@code cell} is {@code null}
 	 * @throws DesignAssemblyException if {@code cell} is not in this design
 	 */
 	public void unplaceCell(Cell cell) {
@@ -600,7 +610,7 @@ public class CellDesign extends AbstractDesign {
 	}
 
 	/**
-	 * Returns a list of XDC constraints on the design.
+	 * Returns a list of XDC constraints for this design.
 	 * @return the xdc constraints for this design
 	 */
 	public List<XdcConstraint> getVivadoConstraints() {
@@ -608,8 +618,8 @@ public class CellDesign extends AbstractDesign {
 	}
 	
 	/**
-	 * Add an XDC constraint to the design
-	 * @param constraint {@link XdcConstraint} to add to the design
+	 * Add an XDC constraint to this design.
+	 * @param constraint the {@code XdcConstraint} to add to the design
 	 */
 	public void addVivadoConstraint(XdcConstraint constraint) {
 		

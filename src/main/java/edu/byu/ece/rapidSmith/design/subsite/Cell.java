@@ -526,7 +526,7 @@ public class Cell {
 	 * either {@link PinDirection#OUT} or {@link PinDirection#INOUT}.  The collection
 	 * is created on this call.
 	 *
-	 * @return a {@code Collection} containing the output pins on this net
+	 * @return a collection containing the output pins on this net
 	 */
 	public final Collection<CellPin> getOutputPins() {
 		return pinMap.values().stream()
@@ -539,7 +539,7 @@ public class Cell {
 	 * either {@link PinDirection#IN} or {@link PinDirection#INOUT}.  The collection
 	 * is created on this call.
 	 *
-	 * @return a {@code Collection} containing the input pins on this net
+	 * @return a collection containing the input pins on this net
 	 */
 	public final Collection<CellPin> getInputPins() {
 		return pinMap.values().stream()
