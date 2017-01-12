@@ -173,10 +173,6 @@ public class CellDesign extends AbstractDesign {
 		if (cell.isInDesign())
 			throw new DesignAssemblyException("Cell already in a design.");
 
-		return registerCell(cell);
-	}
-
-	private Cell registerCell(Cell cell) {
 		if (hasCell(cell.getName()))
 			throw new DesignAssemblyException("Cell with name already exists in design.");
 
