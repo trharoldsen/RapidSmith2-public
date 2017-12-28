@@ -58,16 +58,6 @@ public class DeviceBrowserScene extends TileScene{
 		this.browser = browser;
 	}
 
-	public void drawWire(Tile src, Tile dst){
-		QGraphicsLineItem line = new QGraphicsLineItem(
-				src.getColumn()*tileSize  + tileSize/2,
-				src.getRow()*tileSize + tileSize/2,
-				dst.getColumn()*tileSize + tileSize/2,
-				dst.getRow()*tileSize + tileSize/2);
-		line.setPen(wirePen);
-		addItem(line);
-	}
-
 	void clearCurrentLines(){
 		for(QGraphicsLineItem line : currLines){
 			this.removeItem(line);
@@ -76,27 +66,28 @@ public class DeviceBrowserScene extends TileScene{
 		currLines.clear();
 	}
 
-	void drawWire(Tile src, int wireSrc, Tile dst, int wireDst){
-		double enumSize = we.getWires().length;
-		double x1 = (double) tileXMap.get(src)*tileSize  + (wireSrc%tileSize);
-		double y1 = (double) tileYMap.get(src)*tileSize  + (wireSrc*tileSize)/enumSize;
-		double x2 = (double) tileXMap.get(dst)*tileSize  + (wireDst%tileSize);
-		double y2 = (double) tileYMap.get(dst)*tileSize  + (wireDst*tileSize)/enumSize;
-		WireConnectionLine line = new WireConnectionLine(x1,y1,x2,y2, this, dst, wireDst);
-		line.setToolTip(src.getName() + " " + we.getWireName(wireSrc) + " -> " +
-				dst.getName() + " " + we.getWireName(wireDst));
+	void drawWire(Wire src, Wire dst) {
+		int numWires = device.getNumUniqueWireTypes();
+		int srcOrdinal = src.ordinal();
+		int dstOrdinal = dst.ordinal();
+		double x1 = (double) tileXMap.get(src.getTile())*tileSize  + (srcOrdinal%tileSize);
+		double y1 = (double) tileYMap.get(src.getTile())*tileSize  + (srcOrdinal*tileSize)/numWires;
+		double x2 = (double) tileXMap.get(dst.getTile())*tileSize  + (dstOrdinal%tileSize);
+		double y2 = (double) tileYMap.get(dst.getTile())*tileSize  + (dstOrdinal*tileSize)/numWires;
+		WireConnectionLine line = new WireConnectionLine(x1,y1,x2,y2, this, dst);
+		line.setToolTip(src.getName() + " " + src.getName() + " -> " +
+				dst.getName() + " " + dst.getName());
 		line.setPen(wirePen);
 		line.setAcceptHoverEvents(true);
 		addItem(line);
 		currLines.add(line);
 	}
 
-	void drawConnectingWires(Tile tile, int wire){
+	void drawConnectingWires(TileWire wire){
 		clearCurrentLines();
-		if(tile == null) return;
-		if(tile.getWireConnections(wire) == null) return;
-		for(WireConnection w : tile.getWireConnections(wire)){
-			drawWire(tile, wire, w.getTile(tile), w.getWire());
+		if(wire == null) return;
+		for(Connection w : wire.getWireConnections()) {
+			drawWire(wire, w.getSinkWire());
 		}
 	}
 

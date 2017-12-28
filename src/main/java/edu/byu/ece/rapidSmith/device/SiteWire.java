@@ -20,9 +20,9 @@
 
 package edu.byu.ece.rapidSmith.device;
 
-import edu.byu.ece.rapidSmith.device.Connection.ReverseSiteWireConnection;
 import edu.byu.ece.rapidSmith.device.Connection.SiteToTileConnection;
 import edu.byu.ece.rapidSmith.device.Connection.SiteWireConnection;
+import edu.byu.ece.rapidSmith.util.ArraySet;
 
 import java.io.Serializable;
 import java.util.*;
@@ -38,19 +38,11 @@ public class SiteWire implements Wire, Serializable {
 
 	private static final long serialVersionUID = -3466670995491249683L;
 	private final Site site;
-	private final SiteType siteType;
-	private final int wire;
+	private final SiteWireTemplate template;
 
-	public SiteWire(Site site, int wire) {
+	public SiteWire(Site site, SiteWireTemplate template) {
 		this.site = site;
-		this.siteType = site.getType();
-		this.wire = wire;
-	}
-
-	public SiteWire(Site site, SiteType siteType, int wire) {
-		this.site = site;
-		this.siteType = siteType;
-		this.wire = wire;
+		this.template = template;
 	}
 
 	@Override
@@ -59,7 +51,7 @@ public class SiteWire implements Wire, Serializable {
 	}
 
 	public SiteType getSiteType() {
-		return siteType;
+		return template.getSiteType();
 	}
 
 	@Override
@@ -67,32 +59,13 @@ public class SiteWire implements Wire, Serializable {
 		return site.getTile();
 	}
 
-	@Override
-	public int getWireEnum() {
-		return wire;
+	public SiteWireTemplate getTemplate() {
+		return template;
 	}
 
-	/**
-	 * @deprecated Use {@link #getName} instead.
-	 */
-	@Override
-	@Deprecated
-	public String getWireName() {
-		return getName();
-	}
-	
-	/**
-	 * @deprecated Use {@link #getFullName} instead.
-	 */
-	@Override
-	@Deprecated
-	public String getFullWireName() {
-		return getFullName();
-	}
-	
 	@Override
 	public String getName() {
-		return getTile().getDevice().getWireEnumerator().getWireName(wire);
+		return template.getName();
 	}
 
 	@Override
@@ -101,18 +74,24 @@ public class SiteWire implements Wire, Serializable {
 	}
 
 	@Override
+	public int ordinal() {
+		return template.ordinal();
+	}
+
+	@Override
 	public Collection<Connection> getWireConnections() {
-		WireConnection[] wireConnections = site.getWireConnections(siteType, wire);
-		if (wireConnections == null)
+		ArraySet<WireConnection<SiteWireTemplate>> wcs = site.getWireConnections(template);
+		if (wcs == null)
 			return Collections.emptyList();
 
-		return Arrays.stream(wireConnections)
+		return wcs.stream()
 				.map(wc -> new SiteWireConnection(this, wc))
 				.collect(Collectors.toList());
 	}
 	
-	public WireConnection[] getWireConnectionsArray() {
-		return site.getWireConnections(siteType, wire);
+	@SuppressWarnings("unchecked")
+	public ArraySet<WireConnection<SiteWireTemplate>> getWireConnectionsSet() {
+		return site.getWireConnections(template);
 	}
 
 	@Override
@@ -131,7 +110,7 @@ public class SiteWire implements Wire, Serializable {
 
 	@Override
 	public SitePin getConnectedPin() {
-		SitePin sitePin = site.getSitePinOfInternalWire(siteType, this.wire);
+		SitePin sitePin = site.getSitePinOfInternalWire(template);
 		if (sitePin == null || !sitePin.isOutput())
 			return null;
 		return sitePin;
@@ -148,7 +127,7 @@ public class SiteWire implements Wire, Serializable {
 
 	@Override
 	public BelPin getTerminal() {
-		BelPin belPin = site.getBelPinOfWire(siteType, wire);
+		BelPin belPin = site.getBelPinOfWire(template);
 		if (belPin == null || !belPin.isInput())
 			return null;
 		return belPin;
@@ -156,17 +135,18 @@ public class SiteWire implements Wire, Serializable {
 
 	@Override
 	public Collection<Connection> getReverseWireConnections() {
-		WireConnection[] wireConnections = site.getReverseConnections(siteType, wire);
-		if (wireConnections == null)
+		ArraySet<WireConnection<SiteWireTemplate>> wcs = site.getReverseConnections(template);
+		if (wcs == null)
 			return Collections.emptyList();
 
-		return Arrays.stream(wireConnections)
-				.map(wc -> new ReverseSiteWireConnection(this, wc))
-				.collect(Collectors.toList());
+		return wcs.stream()
+			.map(wc -> new SiteWireConnection(this, wc))
+			.collect(Collectors.toList());
 	}
 	
-	public WireConnection[] getReverseWireConnectionsArray() {
-		return site.getReverseConnections(siteType, wire);
+	@SuppressWarnings("unchecked")
+	public ArraySet<WireConnection<SiteWireTemplate>> getReverseWireConnectionsSet() {
+		return site.getReverseConnections(template);
 	}
 
 	@Override
@@ -185,7 +165,7 @@ public class SiteWire implements Wire, Serializable {
 
 	@Override
 	public SitePin getReverseConnectedPin() {
-		SitePin sitePin = site.getSitePinOfInternalWire(siteType, this.wire);
+		SitePin sitePin = site.getSitePinOfInternalWire(template);
 		if (sitePin == null || !sitePin.isInput())
 			return null;
 		return sitePin;
@@ -202,7 +182,7 @@ public class SiteWire implements Wire, Serializable {
 
 	@Override
 	public BelPin getSource() {
-		BelPin belPin = site.getBelPinOfWire(siteType, wire);
+		BelPin belPin = site.getBelPinOfWire(template);
 		if (belPin == null || !belPin.isOutput())
 			return null;
 		return belPin;
@@ -219,17 +199,17 @@ public class SiteWire implements Wire, Serializable {
 
 		// don't need to test site type since wire enums are unique for each type
 		final SiteWire other = (SiteWire) obj;
-		return Objects.equals(this.site, other.site)
-				&& Objects.equals(this.wire, other.wire);
+		return this.site.equals(other.site)
+				&& this.template.equals(other.template);
 	}
 
 	@Override
 	public int hashCode() {
-		return wire * 31 + site.hashCode();
+		return template.hashCode() * 8191 + site.hashCode();
 	}
 
 	@Override
 	public String toString() {
-		return site.getName() + " " + site.getTile().getDevice().getWireEnumerator().getWireName(wire);
+		return site.getName() + " " + template.getName();
 	}
 }

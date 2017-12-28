@@ -36,8 +36,8 @@ public class AStarRouterExample {
 		Device device = vcp.getDevice();
 		
 		// loading reverse wire connections
-		ExtendedDeviceInfo.loadExtendedInfo(device);
-		
+		device.loadExtendedInfo();
+
 		// Routing net
 		System.out.println("Routing Net...");
 		AStarRouter router = new AStarRouter();

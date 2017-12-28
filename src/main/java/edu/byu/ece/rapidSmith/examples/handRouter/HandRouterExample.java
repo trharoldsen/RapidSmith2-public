@@ -5,8 +5,6 @@ import edu.byu.ece.rapidSmith.RSEnvironment;
 import edu.byu.ece.rapidSmith.design.subsite.RouteTree;
 import edu.byu.ece.rapidSmith.device.Wire;
 import edu.byu.ece.rapidSmith.device.Device;
-import edu.byu.ece.rapidSmith.device.TileWire;
-import edu.byu.ece.rapidSmith.device.WireEnumerator;
 import edu.byu.ece.rapidSmith.util.RapidSmithDebug;
 
 /**
@@ -22,14 +20,11 @@ public class HandRouterExample {
 		System.out.println("Loading device " + PART_NAME + " into RapidSmith2...");
 		Device device = RSEnvironment.defaultEnv().getDevice(PART_NAME);
 
-		// Load the wire enumerator
-		WireEnumerator we = device.getWireEnumerator();
-				
 		// Create a new hand router object
 		HandRouter hr = new HandRouter();
 			
 		// Create a new TileWire object to be the starting wire of the route
-		Wire startWire = new TileWire(device.getTile("CLBLL_L_X16Y152"), we.getWireEnum("CLBLL_L_C"));
+		Wire startWire = device.getTile("CLBLL_L_X16Y152").getWire("CLBLL_L_C");
 		
 		// Run the hand router, which returns a RapidSmith RouteTree object
 		RouteTree route = hr.route(startWire);

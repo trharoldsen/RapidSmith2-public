@@ -19,19 +19,20 @@
  */
 package edu.byu.ece.rapidSmith.device;
 
+import edu.byu.ece.rapidSmith.WireTemplate;
+import edu.byu.ece.rapidSmith.util.ArraySet;
+
 import java.io.Serializable;
 import java.lang.ref.SoftReference;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
 
 /**
  * DO NOT USE THIS CLASS!  This class was specially developed for the Device 
  * wire connections hash map.  It is specifically optimized for that purpose.
  * Created on: Mar 18, 2011
  */
-public class WireHashMap implements Serializable {
+public class WireHashMap<T extends WireTemplate> implements Serializable {
 	/**
 	 * The default initial capacity - MUST be a power of two.
 	 */
@@ -53,12 +54,12 @@ public class WireHashMap implements Serializable {
 	/**
 	 * The keys table. Length MUST Always be a power of two.
 	 */
-	private int[] keys;
+	private T[] keys;
 	
 	/**
 	 * The corresponding values table.
 	 */
-	public WireConnection[][] values;
+	public ArraySet<WireConnection<T>>[] values;
 	
 	/**
 	 * The number of key-value mappings contained in this map.
@@ -74,8 +75,8 @@ public class WireHashMap implements Serializable {
 
 	// Caches are stored as soft references to avoid being a memory drain
 	// when not in use.
-	private transient SoftReference<Set<Integer>> keySetCache;
-	private transient SoftReference<ArrayList<WireConnection[]>> valuesCache;
+	private transient SoftReference<Set<T>> keySetCache;
+	private transient SoftReference<List<ArraySet<WireConnection<T>>>> valuesCache;
 
 	/**
 	 * The next size value at which to resize (capacity * load factor).
@@ -96,6 +97,7 @@ public class WireHashMap implements Serializable {
 	 * @param capacity the set capacity for this hash map
 	 * @param loadFactor the load factor for this hash map before growing
 	 */
+	@SuppressWarnings("unchecked")
 	private WireHashMap(int capacity, float loadFactor){
 		if (capacity < 0)
 			throw new IllegalArgumentException("Illegal initial capacity: " +
@@ -111,9 +113,8 @@ public class WireHashMap implements Serializable {
 		this.loadFactor = loadFactor;
 		threshold = (int)(finalCapacity * loadFactor);
 		
-		keys = new int[finalCapacity];
-		Arrays.fill(keys, -1);
-		values = new WireConnection[finalCapacity][];
+		keys = (T[]) new Object[finalCapacity];
+		values = (ArraySet<WireConnection<T>>[]) new Object[finalCapacity];
 		size = 0;
 	}
 
@@ -139,25 +140,26 @@ public class WireHashMap implements Serializable {
 		return size == 0;
 	}
 
-	private int indexFor(int key) {
-		int i = key & (keys.length-1);
-		while(keys[i] != key && keys[i] != -1){
+	private int indexFor(T key) {
+		int i = key.hashCode() & (keys.length-1);
+		while(keys[i] != null && !keys[i].equals(key)) {
 			i+=3;
 			if(i >= keys.length) i=i&3;
 		}
 		return i;
 	}
 	
-	public WireConnection[] get(int key){
+	public ArraySet<WireConnection<T>> get(T key){
 		int i = indexFor(key);
-		if (keys[i] == -1)
+		if (keys[i] == null)
 			return null;
+		//noinspection unchecked
 		return values[i];
-	} 
+	}
 
-	public void put(int key, WireConnection[] value){
+	public void put(T key, ArraySet<WireConnection<T>> value){
 		int i = indexFor(key);
-		if(keys[i] == -1)
+		if(keys[i] == null)
 			size++;
 		keys[i] = key;
 		values[i] = value;
@@ -168,42 +170,45 @@ public class WireHashMap implements Serializable {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	private void grow(){
 		int newCapacity = keys.length*2;
 		threshold = (int)(newCapacity * loadFactor);
-		int[] oldKeys = keys;
-		WireConnection[][] oldValues = values;
-		keys = new int[newCapacity];
-		Arrays.fill(keys, -1);
-		values = new WireConnection[newCapacity][];
+		Object[] oldKeys = keys;
+		Object[] oldValues = values;
+		keys = (T[]) new Object[newCapacity];
+		Arrays.fill(keys, null);
+		values = (ArraySet<WireConnection<T>>[]) new Object[newCapacity];
 		size = 0;
 		for(int i=0; i < oldKeys.length; i++){
-			if(oldKeys[i] != -1){
-				put(oldKeys[i], oldValues[i]);
+			if(oldKeys[i] != null){
+				//noinspection unchecked
+				put((T) oldKeys[i], (ArraySet<WireConnection<T>>) oldValues[i]);
 			}
 		}
 	}
 	
-	public Set<Integer> keySet(){
+	public Set<T> keySet(){
 		// check if the cached keySets are current
-		Set<Integer> keySet = keySetCache == null ? null : keySetCache.get();
+		Set<T> keySet = keySetCache == null ? null : keySetCache.get();
 		if (keySet != null && keySetCacheModification == wireHashMapModification)
 			return keySet;
 		keySetCacheModification = wireHashMapModification;
 
 		// build the keyset cache
 		keySet = new HashSet<>();
-		for (int key : keys) {
-			if (key != -1)
-				keySet.add(key);
+		for (Object key : keys) {
+			if (key != null)
+				//noinspection unchecked
+				keySet.add((T) key);
 		}
 		keySetCache = new SoftReference<>(keySet);
 		return keySet;
 	}
 	
-	public ArrayList<WireConnection[]> values(){
+	public List<ArraySet<WireConnection<T>>> values(){
 		// check if the cached values are current;
-		ArrayList<WireConnection[]> valuesList = valuesCache == null ? null : valuesCache.get();
+		List<ArraySet<WireConnection<T>>> valuesList = valuesCache == null ? null : valuesCache.get();
 		if (valuesList != null && valuesCacheModification == wireHashMapModification)
 			return valuesList;
 		valuesCacheModification = wireHashMapModification;
@@ -211,11 +216,21 @@ public class WireHashMap implements Serializable {
 		// build the values cache
 		valuesList = new ArrayList<>(size);
 		for (int i = 0; i < keys.length; i++) {
-			if(keys[i] != -1)
+			if(keys[i] != null)
+				//noinspection unchecked
 				valuesList.add(values[i]);
 		}
 		valuesCache = new SoftReference<>(valuesList);
 		return valuesList;
+	}
+
+	public ArraySet<WireConnection<T>> computeIfAbsent(T key, Function<? super T, ArraySet<WireConnection<T>>> f) {
+		ArraySet<WireConnection<T>> v = get(key);
+		if (v != null) return v;
+
+		ArraySet<WireConnection<T>> newv = f.apply(key);
+		put(key, newv);
+		return newv;
 	}
 
 	@Override
@@ -223,11 +238,9 @@ public class WireHashMap implements Serializable {
 		if (hash != null)
 			return hash;
 		hash = 0;
-		for (Integer i : keySet()) {
-			hash += i * 7;
-			if (get(i) != null) {
-				hash += Arrays.deepHashCode(get(i)) * 13;
-			}
+		for (T i : keySet()) {
+			hash += i.hashCode() * 8191;
+			hash += Objects.hashCode(get(i));
 		}
 		return hash;
 	}
@@ -243,28 +256,31 @@ public class WireHashMap implements Serializable {
 		if (!keySet().equals(other.keySet())) {
 			return false;
 		}
-		for (Integer key : keySet()) {
-			if (!Arrays.deepEquals(get(key), other.get(key))) {
+		for (T key : keySet()) {
+			//noinspection unchecked
+			if (!Objects.equals(get(key), other.get(key))) {
 				return false;
 			}
 		}
 		return true;
 	}
 
-	private static class WireHashMapReplace implements Serializable {
-		private static final long serialVersionUID = -7320168883881265737L;
+	private static class WireHashMapReplace<T extends WireTemplate> implements Serializable {
+		private static final long serialVersionUID = -7369854899201714510L;
 		private int arrSize;
 		private float loadFactor;
-		private int[] keys;
+		private T[] keys;
 		private int[] indices;
-		private WireConnection[][] values;
+		private ArraySet<WireConnection<T>>[] values;
 
 		@SuppressWarnings("unused")
-		private WireHashMap readResolve() {
-			WireHashMap whm = new WireHashMap(loadFactor);
-			whm.keys = new int[arrSize];
-			Arrays.fill(whm.keys, -1);
-			whm.values = new WireConnection[arrSize][];
+		private WireHashMap<T> readResolve() {
+			WireHashMap<T> whm = new WireHashMap<>(loadFactor);
+			//noinspection unchecked
+			whm.keys = (T[]) new Object[arrSize];
+			Arrays.fill(whm.keys, null);
+			//noinspection unchecked
+			whm.values = (ArraySet<WireConnection<T>>[]) new Object[arrSize];
 
 			for (int i = 0; i < keys.length; i++) {
 				whm.keys[indices[i]] = keys[i];
@@ -281,13 +297,14 @@ public class WireHashMap implements Serializable {
 	private WireHashMapReplace writeReplace() {
 		WireHashMapReplace repl = new WireHashMapReplace();
 		repl.arrSize = keys.length;
-		repl.keys = new int[size];
+		repl.keys = new WireTemplate[size];
 		repl.indices = new int[size];
-		repl.values = new WireConnection[size][];
+		//noinspection unchecked
+		repl.values = (ArraySet<WireConnection<WireTemplate>>[]) new Object[size];
 
 		int j = 0;
 		for (int i = 0; i < keys.length; i++) {
-			if (keys[i] != -1) {
+			if (keys[i] != null) {
 				repl.keys[j] = keys[i];
 				repl.indices[j] = i;
 				repl.values[j] = values[i];
@@ -298,15 +315,5 @@ public class WireHashMap implements Serializable {
 		repl.loadFactor = loadFactor;
 
 		return repl;
-	}
-
-	public static WireHashMap EMPTY_WIRE_HASHMAP;
-
-	static {
-		EMPTY_WIRE_HASHMAP = new WireHashMap();
-		EMPTY_WIRE_HASHMAP.size = 0;
-		EMPTY_WIRE_HASHMAP.keys = new int[1];
-		EMPTY_WIRE_HASHMAP.keys[0] = -1;
-		EMPTY_WIRE_HASHMAP.values = new WireConnection[0][0];
 	}
 }

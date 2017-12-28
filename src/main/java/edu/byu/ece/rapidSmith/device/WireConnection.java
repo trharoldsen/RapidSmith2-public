@@ -19,6 +19,8 @@
  */
 package edu.byu.ece.rapidSmith.device;
 
+import edu.byu.ece.rapidSmith.WireTemplate;
+
 import java.io.Serializable;
 
 /**
@@ -33,42 +35,29 @@ import java.io.Serializable;
  * @author Chris Lavin
  *
  */
-public class WireConnection implements Serializable, Comparable<WireConnection>{
+public class WireConnection<T extends WireTemplate> implements Serializable, Comparable<WireConnection<T>> {
 	private static final long serialVersionUID = 8614891405695500370L;
 	/** The wire enumeration value of the wire to be connected to */
-	private int wire;
+	private final T template;
 	/** The tile row offset from the source wire's tile */
-	private int rowOffset;
+	private final int rowOffset;
 	/** The tile column offset from the source wire's tile */
-	private int columnOffset;
+	private final int columnOffset;
 	/** Does the source wire connected to this wire make a PIP? */
-	private boolean isPIP;
+	private final boolean isPIP;
 
-	public WireConnection(){
-		this.wire = -1;
-		this.rowOffset = 0;
-		this.columnOffset = 0;
-		this.setPIP(false);
-	}
-
-	public WireConnection(int wire, int rowOffset, int columnOffset, boolean pip){
-		this.wire = wire;
+	public WireConnection(T template, int rowOffset, int columnOffset, boolean pip){
+		this.template = template;
 		this.rowOffset = rowOffset;
 		this.columnOffset = columnOffset;
-		this.setPIP(pip);
+		this.isPIP = pip;
 	}
 
-	/**
-	 * @param wire the destination wire to set
-	 */
-	public void setWire(int wire) {
-		this.wire = wire;
-	}
 	/**
 	 * @return the destination wire
 	 */
-	public int getWire() {
-		return wire;
+	public T getSinkWire() {
+		return template;
 	}
 
 	/**
@@ -81,7 +70,6 @@ public class WireConnection implements Serializable, Comparable<WireConnection>{
 		return currTile.getDevice().getTile(currTile.getRow()-this.rowOffset, currTile.getColumn()-this.columnOffset);
 	}
 
-
 	public Tile getWireCacheTile(Device dev, Tile currTile){
 		String name = currTile.getName().substring(0, currTile.getName().lastIndexOf("_")+1) +
 				"X" + (currTile.getTileXCoordinate()+this.columnOffset) +
@@ -93,23 +81,8 @@ public class WireConnection implements Serializable, Comparable<WireConnection>{
 		return rowOffset;
 	}
 
-	public void setRowOffset(int rowOffset) {
-		this.rowOffset = rowOffset;
-	}
-
 	public int getColumnOffset() {
 		return columnOffset;
-	}
-
-	public void setColumnOffset(int columnOffset) {
-		this.columnOffset = columnOffset;
-	}
-
-	/**
-	 * @param isPIP the isPIP to set
-	 */
-	public void setPIP(boolean isPIP) {
-		this.isPIP = isPIP;
 	}
 
 	/**
@@ -122,11 +95,20 @@ public class WireConnection implements Serializable, Comparable<WireConnection>{
 
 	@Override
 	public int hashCode(){
-		return  ((this.rowOffset << 24) & 0xFF000000) | ((this.columnOffset << 16) & 0x00FF0000) |(this.wire);
+		int magicPrime = 131071;
+		int hash = rowOffset;
+		hash = hash * magicPrime + columnOffset;
+		hash = hash * magicPrime + template.hashCode();
+		return  hash;
 	}
 
+	@Override
 	public int compareTo(WireConnection w){
-		return (this.columnOffset + this.rowOffset + this.wire) - (w.columnOffset + w.rowOffset + w.wire);
+		int compare = this.template.ordinal() - w.template.ordinal();
+		if (compare != 0) return compare;
+		compare = this.columnOffset - w.columnOffset;
+		if (compare != 0) return compare;
+		return this.rowOffset - w.rowOffset;
 	}
 
 	@Override
@@ -138,18 +120,14 @@ public class WireConnection implements Serializable, Comparable<WireConnection>{
 		if (getClass() != obj.getClass())
 			return false;
 		WireConnection other = (WireConnection) obj;
-		return columnOffset == other.columnOffset &&
-				isPIP == other.isPIP &&
-				rowOffset == other.rowOffset &&
-				wire == other.wire;
+		return template.equals(other.template) &&
+			columnOffset == other.columnOffset &&
+			rowOffset == other.rowOffset &&
+			isPIP == other.isPIP;
 	}
 
 	@Override
 	public String toString(){
-		return this.wire +" "+ this.rowOffset +" "+ this.columnOffset + " ";
-	}
-
-	public String toString(WireEnumerator we){
-		return we.getWireName(this.wire) +"("+ this.rowOffset +","+ this.columnOffset +","+ this.isPIP + ")";
+		return template.getName() +"("+ rowOffset +","+ columnOffset +","+ isPIP + ")";
 	}
 }

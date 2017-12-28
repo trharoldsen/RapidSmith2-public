@@ -63,7 +63,7 @@ public class FamilyBuilders {
 		Path fileLocation = env.getJavaPath().resolve(pkgPath).resolve(className + ".java");
 		CompilationUnit cu;
 		if (Files.exists(fileLocation))
-			cu = loadFamilyInfoClass(fileLocation, className);
+			cu = loadFamilyInfoClass(fileLocation);
 		else
 			cu = createFamilyInfoClass(className);
 
@@ -89,7 +89,7 @@ public class FamilyBuilders {
 				if (sites != null) {
 					for (Site site : sites) {
 						familyInfoData.siteTypes.add(site.getDefaultType().name());
-						SiteType[] possibleTypes = site.getPossibleTypes();
+						ArraySet<SiteType> possibleTypes = site.getPossibleTypes();
 						if (possibleTypes != null) {
 							for (SiteType siteType : possibleTypes) {
 								familyInfoData.siteTypes.add(siteType.name());
@@ -102,7 +102,7 @@ public class FamilyBuilders {
 		}
 	}
 
-	private CompilationUnit loadFamilyInfoClass(Path fileLocation, String className) throws IOException {
+	private CompilationUnit loadFamilyInfoClass(Path fileLocation) throws IOException {
 		return JavaParser.parse(fileLocation);
 	}
 

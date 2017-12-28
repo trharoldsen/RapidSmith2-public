@@ -21,6 +21,9 @@ package edu.byu.ece.rapidSmith.util;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import edu.byu.ece.rapidSmith.RSEnvironment;
 import edu.byu.ece.rapidSmith.device.*;
@@ -34,7 +37,6 @@ public class BrowseDevice{
 
 	public static void run(Device dev){
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-		WireEnumerator we = dev.getWireEnumerator();
 		Tile t;
 		while(true){
 			System.out.println("Commands: ");
@@ -55,9 +57,9 @@ public class BrowseDevice{
 
 						System.out.println("Enter wire name: ");
 						String wire = br.readLine().trim();
-						WireConnection[] wires = t.getWireConnections(we.getWireEnum(wire));
+						Collection<Connection> wires = t.getWire(wire).getWireConnections();
 						if(wires != null){
-							for(WireConnection w : wires){
+							for(Connection w : wires){
 								System.out.println("  " + w.toString());
 							}
 						}
@@ -84,28 +86,28 @@ public class BrowseDevice{
 						System.out.println("Choosen start tile: " + t.getName());
 
 						System.out.println("Enter start wire name: ");
-						String startWire = br.readLine().trim();
+						Wire startWire = t.getWire(br.readLine().trim());
 						
 						while(true){
 							if(t.getWireHashMap() == null){
 								System.out.println("This tile has no wires.");
 								break;
 							}
-							if(t.getWireConnections(we.getWireEnum(startWire)) == null){
+							if(startWire.getWireConnections().isEmpty()){
 								System.out.println("This wire has no connections, it may be a sink");
 								break;
 							}
-							WireConnection[] wireConnections = t.getWireConnections(we.getWireEnum(startWire));
+							List<Connection> wireConnections = new ArrayList<>(startWire.getWireConnections());
 							System.out.println(t.getName() + " " + startWire + ":");
-							for (int i = 0; i < wireConnections.length; i++) {
-								System.out.println("  " + i + ". " + wireConnections[i].getTile(t) +" " + we.getWireName(wireConnections[i].getWire()));
+							for (int i = 0; i < wireConnections.size(); i++) {
+								Wire sinkWire = wireConnections.get(i).getSinkWire();
+								System.out.println("  " + i + ". " + sinkWire.getFullName());
 							}
 							System.out.print("Choose a wire: ");
 							int ndx;
 							try{
 								ndx = Integer.parseInt(br.readLine().trim());
-								t = wireConnections[ndx].getTile(t);
-								startWire = we.getWireName(wireConnections[ndx].getWire());
+								startWire = wireConnections.get(ndx).getSinkWire();
 							}
 							catch(Exception e){
 								System.out.println("Did not understand, try again.");

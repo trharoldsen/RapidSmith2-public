@@ -41,7 +41,7 @@ public final class BelPinTemplate implements Serializable {
 	// Names of the site pins that drive or are driven by the BEL pins
 	private Set<String> sitePins;
 	// Wire the BEL pin connects to
-	private int wire;
+	private SiteWireTemplate wire;
 
 	public BelPinTemplate(BelId id, String name) {
 		this.name = name;
@@ -84,11 +84,11 @@ public final class BelPinTemplate implements Serializable {
 		sitePins.add(sitePin);
 	}
 
-	public int getWire() {
+	public SiteWireTemplate getWire() {
 		return wire;
 	}
 
-	public void setWire(int wire) {
+	public void setWire(SiteWireTemplate wire) {
 		this.wire = wire;
 	}
 

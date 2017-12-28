@@ -80,8 +80,6 @@ public class TileScene extends QGraphicsScene{
 	public double lineWidth = 1;
 	/** The device corresponding to this scene */
 	protected Device device;
-	/** The wire enumerator corresponding to this scene */
-	protected WireEnumerator we;
 	/** The signal which updates the status bar */
 	public Signal2<String, Tile> updateStatus = new Signal2<>();
 	/** The signal which is made when a mouse button is pressed */
@@ -370,7 +368,6 @@ public class TileScene extends QGraphicsScene{
 	
 	public void setDevice(Device device){
 		this.device = device;
-		this.we = device.getWireEnumerator();
 	}
 
 	public double getCurrX(){

@@ -30,30 +30,16 @@ import java.util.Collection;
  * object are immutable.
  */
 public interface Wire extends Serializable {
-	int getWireEnum();
 	String getName();
 	String getFullName();
 	Tile getTile();
 	Site getSite();
+	int ordinal();
 	
-	/**
-	 * @deprecated Use {@link #getName} instead.
-	 */
-	@Deprecated
-	String getWireName();
-	
-	/**
-	 * @deprecated Use {@link #getFullName} instead.
-	 */
-	@Deprecated
-	String getFullWireName();
-
 	/**
 	 * Return connection linking this wire to other wires in the same hierarchy.
 	 */
 	Collection<Connection> getWireConnections();
-	
-	WireConnection[] getWireConnectionsArray();
 
 	/**
 	 * Returns connection linking this wire to another wire in a different
@@ -90,8 +76,6 @@ public interface Wire extends Serializable {
 	 * Returns connection linking this wire to its drivers in the same hierarchy.
 	 */
 	Collection<Connection> getReverseWireConnections();
-	
-	WireConnection[] getReverseWireConnectionsArray();
 
 	/**
 	 * Returns the connected site pins for each possible type of the connected site.

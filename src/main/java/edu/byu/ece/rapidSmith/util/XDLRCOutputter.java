@@ -20,7 +20,6 @@
 
 package edu.byu.ece.rapidSmith.util;
 
-import edu.byu.ece.rapidSmith.design.xdl.XdlAttribute;
 import edu.byu.ece.rapidSmith.device.*;
 import edu.byu.ece.rapidSmith.primitiveDefs.PrimitiveConnection;
 import edu.byu.ece.rapidSmith.primitiveDefs.PrimitiveDef;
@@ -56,7 +55,6 @@ public class XDLRCOutputter {
 	private boolean buildDefsFromTemplates = false;
 	private String ind = "\t";
 
-	private WireEnumerator we;
 	private Writer out;
 
 	/**
@@ -164,24 +162,23 @@ public class XDLRCOutputter {
 	 * @throws IOException if any IO errors occur while writing
 	 */
 	public void writeDevice(Device device, Set<Tile> tiles, Writer out) throws IOException {
-		this.we = device.getWireEnumerator();
 		this.out = out;
 
 		SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy");
 
-		out.append("# =======================================================" + nl);
-		out.append("# XDL REPORT MODE $Revision: 1.8 $" + nl);
-		out.append("# time: " + sdf.format(new Date()) + nl);
-		out.append("# =======================================================" + nl);
+		out.append("# =======================================================").append(nl);
+		out.append("# XDL REPORT MODE $Revision: 1.8 $").append(nl);
+		out.append("# time: ").append(sdf.format(new Date())).append(nl);
+		out.append("# =======================================================").append(nl);
 		out.append("(xdl_resource_report v0.2 ");
-		out.append(device.getPartName() + " ");
-		out.append(device.getFamily().name().toLowerCase() + nl);
-		out.append("# **************************************************************************" + nl);
-		out.append("# *                                                                        *" + nl);
-		out.append("# * Tile Resources                                                         *" + nl);
-		out.append("# *                                                                        *" + nl);
-		out.append("# **************************************************************************" + nl);
-		out.append("(tiles " + device.getRows() + " " + device.getColumns() + nl);
+		out.append(device.getPartName()).append(" ");
+		out.append(device.getFamily().name().toLowerCase()).append(nl);
+		out.append("# **************************************************************************").append(nl);
+		out.append("# *                                                                        *").append(nl);
+		out.append("# * Tile Resources                                                         *").append(nl);
+		out.append("# *                                                                        *").append(nl);
+		out.append("# **************************************************************************").append(nl);
+		out.append("(tiles ").append(String.valueOf(device.getRows())).append(" ").append(String.valueOf(device.getColumns())).append(nl);
 
 		if (tiles == null) {
 			for (int row = 0; row < device.getRows(); row++) {
@@ -193,14 +190,14 @@ public class XDLRCOutputter {
 			for (Tile tile : tiles)
 				writeTile(tile);
 		}
-		out.append(")" + nl);
+		out.append(")").append(nl);
 
-		out.append("(primitive_defs " + device.getPrimitiveDefs().size() + nl);
+		out.append("(primitive_defs ").append(String.valueOf(device.getPrimitiveDefs().size())).append(nl);
 		List<PrimitiveDef> defs;
 		if (buildDefsFromTemplates) {
 			defs = device.getSiteTemplates().values().stream()
 					.map(this::createPrimitiveDef)
-					.collect(Collectors.toCollection(ArrayList<PrimitiveDef>::new));
+					.collect(Collectors.toCollection(ArrayList::new));
 		} else {
 			defs = new ArrayList<>(device.getPrimitiveDefs().values());
 		}
@@ -210,13 +207,11 @@ public class XDLRCOutputter {
 			writePrimitiveDef(def);
 		}
 
-		out.append(")" + nl);
+		out.append(")").append(nl);
 	}
 
 	private void writeTile(Tile tile) throws IOException {
-		out.append(ind + "(tile " + tile.getRow() + " " + tile.getColumn() + " " +
-				tile.getName() + " " + tile.getType() + " " +
-				(tile.getSites() == null ? "0" : tile.getSites().length) + nl);
+		out.append(ind).append("(tile ").append(String.valueOf(tile.getRow())).append(" ").append(String.valueOf(tile.getColumn())).append(" ").append(tile.getName()).append(" ").append(String.valueOf(tile.getType())).append(" ").append(String.valueOf(tile.getSites() == null ? "0" : tile.getSites().length)).append(nl);
 		int numPinWires = 0;
 		if (tile.getSites() != null) {
 			for (Site site : tile.getSites()) {
@@ -228,14 +223,14 @@ public class XDLRCOutputter {
 		if (writeWires) {
 			List<String> wireNames = tile.getWires().stream()
 					.map(Wire::getName)
-					.collect(Collectors.toCollection(ArrayList<String>::new));
+					.collect(Collectors.toCollection(ArrayList::new));
 			if (forceOrdering)
 				Collections.sort(wireNames);
 
 			for (String wireName : wireNames) {
-				Wire wire = new TileWire(tile, we.getWireEnum(wireName));
-				out.append(ind + ind + "(wire ");
-				out.append(wireName + " ");
+				Wire wire = tile.getWire(wireName);
+				out.append(ind).append(ind).append("(wire ");
+				out.append(wireName).append(" ");
 
 				List<Connection> nonPips = new ArrayList<>();
 				for (Connection c : wire.getWireConnections()) {
@@ -245,24 +240,24 @@ public class XDLRCOutputter {
 				if (forceOrdering)
 					nonPips.sort(new ConnectionComparator());
 
-				out.append("" + nonPips.size());
+				out.append("").append(String.valueOf(nonPips.size()));
 				if (nonPips.size() == 0) {
-					out.append(")" + nl);
+					out.append(")").append(nl);
 				} else {
 					out.append(nl);
 					for (Connection c : nonPips) {
 						Wire sinkWire = c.getSinkWire();
-						out.append(ind + ind + ind + "(conn ");
-						out.append(sinkWire.getTile() + " ");
-						out.append(sinkWire.getName() + ")" + nl);
+						out.append(ind).append(ind).append(ind).append("(conn ");
+						out.append(String.valueOf(sinkWire.getTile())).append(" ");
+						out.append(sinkWire.getName()).append(")").append(nl);
 					}
-					out.append(ind + ind + ")" + nl);
+					out.append(ind).append(ind).append(")").append(nl);
 				}
 			}
 
 			int numPips = 0;
 			for (String wireName : wireNames) {
-				Wire sourceWire = new TileWire(tile, we.getWireEnum(wireName));
+				Wire sourceWire = tile.getWire(wireName);
 
 				List<Connection> pips = new ArrayList<>();
 				for (Connection c : sourceWire.getWireConnections()) {
@@ -273,32 +268,32 @@ public class XDLRCOutputter {
 					pips.sort(new ConnectionComparator());
 
 				for (Connection c : pips) {
-					out.append(ind + ind + "(pip ");
-					out.append(tile.getName() + " ");
-					out.append(wireName + " ");
+					out.append(ind).append(ind).append("(pip ");
+					out.append(tile.getName()).append(" ");
+					out.append(wireName).append(" ");
 					out.append(isBidirectionalPip(sourceWire, c.getSinkWire()) ? "=- " : "-> ");
 					out.append(c.getSinkWire().getName());
 
 					PIPRouteThrough rt = tile.getDevice().getRouteThrough(sourceWire, c.getSinkWire());
 					if (rt != null) {
-						out.append(" (_ROUTETHROUGH-" + rt.getInPin() + "-");
-						out.append(rt.getOutPin() + " ");
-						out.append(rt.getType().name() + "))" + nl);
+						out.append(" (_ROUTETHROUGH-").append(rt.getInPin()).append("-");
+						out.append(rt.getOutPin()).append(" ");
+						out.append(rt.getType().name()).append("))").append(nl);
 					} else {
-						out.append(")" + nl);
+						out.append(")").append(nl);
 					}
 					numPips++;
 				}
 			}
 
-			out.append(ind + ind + "(tile_summary ");
-			out.append(tile.getName() + " ");
-			out.append(tile.getType().name() + " ");
-			out.append(numPinWires + " ");
-			out.append(tile.getWires().size() + " ");
-			out.append(numPips + ")" + nl);
+			out.append(ind).append(ind).append("(tile_summary ");
+			out.append(tile.getName()).append(" ");
+			out.append(tile.getType().name()).append(" ");
+			out.append(String.valueOf(numPinWires)).append(" ");
+			out.append(String.valueOf(tile.getWires().size())).append(" ");
+			out.append(String.valueOf(numPips)).append(")").append(nl);
 		}
-		out.append(ind + ")" + nl);
+		out.append(ind).append(")").append(nl);
 	}
 
 	private boolean isBidirectionalPip(Wire sourceWire, Wire sinkWire) {
@@ -312,13 +307,13 @@ public class XDLRCOutputter {
 	}
 
 	private void writeSite(Site site, boolean writeWires) throws IOException {
-		out.append(ind + ind + "(primitive_site " + site.getName() + " ");
-		out.append("" + site.getDefaultType());
-		out.append(" " + site.getBondedType() + " ");
+		out.append(ind).append(ind).append("(primitive_site ").append(site.getName()).append(" ");
+		out.append("").append(String.valueOf(site.getDefaultType()));
+		out.append(" ").append(String.valueOf(site.getBondedType())).append(" ");
 		int numPins = site.getSinkPins().size() + site.getSourcePins().size();
-		out.append("" + numPins);
+		out.append("").append(String.valueOf(numPins));
 		if (!writeWires || numPins == 0) {
-			out.append(")" + nl);
+			out.append(")").append(nl);
 		} else {
 			out.append(nl);
 
@@ -327,11 +322,11 @@ public class XDLRCOutputter {
 				Collections.sort(sinkPins);
 			for (String pinName : sinkPins) {
 				SitePin pin = site.getSinkPin(pinName);
-				out.append(ind + ind + ind + "(pinwire ");
-				out.append(pinName + " ");
+				out.append(ind).append(ind).append(ind).append("(pinwire ");
+				out.append(pinName).append(" ");
 				out.append("input ");
-				out.append(we.getWireName(pin.getExternalWire().getWireEnum()));
-				out.append(")" + nl);
+				out.append(pin.getExternalWire().getName());
+				out.append(")").append(nl);
 			}
 
 			List<String> sourcePins = new ArrayList<>(site.getSourcePinNames());
@@ -339,37 +334,37 @@ public class XDLRCOutputter {
 				Collections.sort(sourcePins);
 			for (String pinName : sourcePins) {
 				SitePin pin = site.getSourcePin(pinName);
-				out.append(ind + ind + ind + "(pinwire ");
-				out.append(pinName + " ");
+				out.append(ind).append(ind).append(ind).append("(pinwire ");
+				out.append(pinName).append(" ");
 				out.append("output ");
-				out.append(we.getWireName(pin.getExternalWire().getWireEnum()));
-				out.append(")" + nl);
+				out.append(pin.getExternalWire().getName());
+				out.append(")").append(nl);
 			}
-			out.append(ind + ind + ")" + nl);
+			out.append(ind).append(ind).append(")").append(nl);
 		}
 	}
 
 	private void writePrimitiveDef(PrimitiveDef def) throws IOException {
-		out.append(ind + "(primitive_def ");
-		out.append(def.getType().name() + " ");
-		out.append(def.getElements().size() + nl);
+		out.append(ind).append("(primitive_def ");
+		out.append(def.getType().name()).append(" ");
+		out.append(String.valueOf(def.getElements().size())).append(nl);
 
 		List<PrimitiveDefPin> pins = new ArrayList<>(def.getPins());
 		if (forceOrdering)
 			pins.sort(Comparator.comparing(PrimitiveDefPin::getExternalName));
 		for (PrimitiveDefPin pin : pins) {
-			out.append(ind + ind + "(pin ");
-			out.append(pin.getInternalName() + " ");
-			out.append(directionToString(pin.getDirection()) + ")" + nl);
+			out.append(ind).append(ind).append("(pin ");
+			out.append(pin.getInternalName()).append(" ");
+			out.append(directionToString(pin.getDirection())).append(")").append(nl);
 		}
 
 		List<PrimitiveElement> els = new ArrayList<>(def.getElements());
 		if (forceOrdering)
 			els.sort(Comparator.comparing(PrimitiveElement::getName));
 		for (PrimitiveElement el : els) {
-			out.append(ind + ind + "(element ");
-			out.append(el.getName() + " ");
-			out.append("" + el.getPins().size());
+			out.append(ind).append(ind).append("(element ");
+			out.append(el.getName()).append(" ");
+			out.append("").append(String.valueOf(el.getPins().size()));
 
 			if (el.isBel()) {
 				out.append(" # BEL");
@@ -380,20 +375,20 @@ public class XDLRCOutputter {
 			if (forceOrdering)
 				elPins.sort(Comparator.comparing(PrimitiveDefPin::getExternalName));
 			for (PrimitiveDefPin pin : el.getPins()) {
-				out.append(ind + ind + ind + "(pin ");
-				out.append(pin.getExternalName() + " ");
-				out.append(directionToString(pin.getDirection()) + ")" + nl);
+				out.append(ind).append(ind).append(ind).append("(pin ");
+				out.append(pin.getExternalName()).append(" ");
+				out.append(directionToString(pin.getDirection())).append(")").append(nl);
 			}
 			if (el.getCfgOptions() != null) {
-				out.append(ind + ind + ind + "(cfg");
+				out.append(ind).append(ind).append(ind).append("(cfg");
 
 				List<String> cfgs = new ArrayList<>(el.getCfgOptions());
 				if (forceOrdering)
 					Collections.sort(cfgs);
 				for (String cfg : cfgs) {
-					out.append(" " + cfg);
+					out.append(" ").append(cfg);
 				}
-				out.append(")" + nl);
+				out.append(")").append(nl);
 			}
 
 			List<PrimitiveConnection> conns = new ArrayList<>(el.getConnections());
@@ -404,18 +399,18 @@ public class XDLRCOutputter {
 						.thenComparing(PrimitiveConnection::getPin1));
 			}
 			for (PrimitiveConnection c : conns) {
-				out.append(ind + ind + ind + "(conn ");
-				out.append(c.getElement0() + " ");
-				out.append(c.getPin0() + " ");
+				out.append(ind).append(ind).append(ind).append("(conn ");
+				out.append(c.getElement0()).append(" ");
+				out.append(c.getPin0()).append(" ");
 				out.append((c.isForwardConnection()) ? "==> " : "<== ");
-				out.append(c.getElement1() + " ");
-				out.append(c.getPin1() + ")" + nl);
+				out.append(c.getElement1()).append(" ");
+				out.append(c.getPin1()).append(")").append(nl);
 			}
 
-			out.append(ind + ind + ")" + nl);
+			out.append(ind).append(ind).append(")").append(nl);
 		}
 
-		out.append(ind + ")" + nl);
+		out.append(ind).append(")").append(nl);
 	}
 
 	private String directionToString(PinDirection pinDirection) {
@@ -433,7 +428,7 @@ public class XDLRCOutputter {
 	}
 
 	private PrimitiveDef createPrimitiveDef(SiteTemplate template) {
-		Map<Integer, Pin> pinWiresMap = new HashMap<>();
+		Map<SiteWireTemplate, Pin> pinWiresMap = new HashMap<>();
 
 		PrimitiveDef def = new PrimitiveDef();
 		def.setType(template.getType());
@@ -446,7 +441,7 @@ public class XDLRCOutputter {
 		return def;
 	}
 
-	private void createPinElements(SiteTemplate template, Map<Integer, Pin> pinWiresMap, PrimitiveDef def) {
+	private void createPinElements(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
 		for (SitePinTemplate sitePin : template.getSinks().values()) {
 			PrimitiveDefPin defSitePin = new PrimitiveDefPin();
 			defSitePin.setExternalName(sitePin.getName());
@@ -490,7 +485,7 @@ public class XDLRCOutputter {
 		}
 	}
 
-	private void createBelElements(SiteTemplate template, Map<Integer, Pin> pinWiresMap, PrimitiveDef def) {
+	private void createBelElements(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
 		for (BelTemplate bel : template.getBelTemplates().values()) {
 			PrimitiveElement el = new PrimitiveElement();
 			el.setName(bel.getId().getName());
@@ -513,49 +508,55 @@ public class XDLRCOutputter {
 		}
 	}
 
-	private void createPIPMuxElements(SiteTemplate template, Map<Integer, Pin> pinWiresMap, PrimitiveDef def) {
-		for (int source : template.getPipAttributes().keySet()) {
-			int sink = template.getPipAttributes().get(source).keySet().iterator().next();
-			XdlAttribute attr = template.getPipAttributes().get(source).values().iterator().next();
+	private void createPIPMuxElements(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
+		for (SiteWireTemplate source : template.getRouting().keySet()) {
+			List<WireConnection<SiteWireTemplate>> wcs = template.getWireConnections(source)
+				.stream().filter(w -> w.isPIP())
+				.collect(Collectors.toList());
 
-			String elName = attr.getPhysicalName();
-			PrimitiveElement el = def.getElement(elName);
-			if (el == null) {
-				el = new PrimitiveElement();
-				el.setName(elName);
-				el.setMux(true);
-				PrimitiveDefPin sinkPin = new PrimitiveDefPin();
-				sinkPin.setExternalName(getPinNameFromWire(we.getWireName(sink)));
-				sinkPin.setDirection(PinDirection.OUT);
-				el.addPin(sinkPin);
+			for (WireConnection<SiteWireTemplate> wc : wcs) {
+				SiteWireTemplate sink = wc.getSinkWire();
+
+				String elName = getElementNameFromWire(sink.getName());
+				PrimitiveElement el = def.getElement(elName);
+				if (el == null) {
+					el = new PrimitiveElement();
+					el.setName(elName);
+					el.setMux(true);
+					PrimitiveDefPin sinkPin = new PrimitiveDefPin();
+					sinkPin.setExternalName(getPinNameFromWire(sink.getName()));
+					sinkPin.setDirection(PinDirection.OUT);
+					el.addPin(sinkPin);
+				}
+				String sourcePinName = getPinNameFromWire(source.getName());
+				PrimitiveDefPin sourcePin = new PrimitiveDefPin();
+				sourcePin.setExternalName(sourcePinName);
+				sourcePin.setDirection(PinDirection.IN);
+				el.addPin(sourcePin);
+				el.addCfgOption(sourcePinName);
+				def.addElement(el);
+
+				pinWiresMap.put(source, new Pin(el, sourcePinName));
 			}
-			PrimitiveDefPin sourcePin = new PrimitiveDefPin();
-			sourcePin.setExternalName(attr.getValue());
-			sourcePin.setDirection(PinDirection.IN);
-			el.addPin(sourcePin);
-			el.addCfgOption(attr.getValue());
-			def.addElement(el);
-
-			pinWiresMap.put(source, new Pin(el, attr.getValue()));
 		}
 	}
 
-	private void createSitePinConnections(SiteTemplate template, Map<Integer, Pin> pinWiresMap, PrimitiveDef def) {
+	private void createSitePinConnections(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
 		for (SitePinTemplate sitePin : template.getSinks().values()) {
 			PrimitiveElement el = def.getElement(sitePin.getName());
 
-			int sitePinWire = sitePin.getInternalWire();
-			WireConnection[] wcs = template.getWireConnections(sitePinWire);
+			SiteWireTemplate sitePinWire = sitePin.getInternalWire();
+			ArraySet<WireConnection<SiteWireTemplate>> wcs = template.getWireConnections(sitePinWire);
 			if (wcs == null)
 				continue;
 
-			Queue<Integer> wires = new LinkedList<>();
-			for (WireConnection wc : wcs) {
-				wires.add(wc.getWire());
+			Queue<SiteWireTemplate> wires = new LinkedList<>();
+			for (WireConnection<SiteWireTemplate> wc : wcs) {
+				wires.add(wc.getSinkWire());
 			}
 
 			while (!wires.isEmpty()) {
-				int wire = wires.poll();
+				SiteWireTemplate wire = wires.poll();
 				if (pinWiresMap.containsKey(wire)) {
 					Pin sink = pinWiresMap.get(wire);
 
@@ -581,30 +582,30 @@ public class XDLRCOutputter {
 				wcs = template.getWireConnections(wire);
 				if (wcs == null)
 					continue;
-				for (WireConnection wc : wcs) {
-					wires.add(wc.getWire());
+				for (WireConnection<SiteWireTemplate> wc : wcs) {
+					wires.add(wc.getSinkWire());
 				}
 			}
 		}
 	}
 
-	private void createBelPinConnections(SiteTemplate template, Map<Integer, Pin> pinWiresMap, PrimitiveDef def) {
+	private void createBelPinConnections(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
 		for (BelTemplate bel : template.getBelTemplates().values()) {
 			PrimitiveElement el = def.getElement(bel.getId().getName());
 
 			for (BelPinTemplate belPin : bel.getSources().values()) {
-				int pinWire = belPin.getWire();
-				WireConnection[] wcs = template.getWireConnections(pinWire);
+				SiteWireTemplate pinWire = belPin.getWire();
+				ArraySet<WireConnection<SiteWireTemplate>> wcs = template.getWireConnections(pinWire);
 				if (wcs == null)
 					continue;
 
-				Queue<Integer> wires = new LinkedList<>();
-				for (WireConnection wc : wcs) {
-					wires.add(wc.getWire());
+				Queue<SiteWireTemplate> wires = new LinkedList<>();
+				for (WireConnection<SiteWireTemplate> wc : wcs) {
+					wires.add(wc.getSinkWire());
 				}
 
 				while (!wires.isEmpty()) {
-					int wire = wires.poll();
+					SiteWireTemplate wire = wires.poll();
 					if (pinWiresMap.containsKey(wire)) {
 						Pin sink = pinWiresMap.get(wire);
 
@@ -630,12 +631,19 @@ public class XDLRCOutputter {
 					wcs = template.getWireConnections(wire);
 					if (wcs == null)
 						continue;
-					for (WireConnection wc : wcs) {
-						wires.add(wc.getWire());
+					for (WireConnection<SiteWireTemplate> wc : wcs) {
+						wires.add(wc.getSinkWire());
 					}
 				}
 			}
 		}
+	}
+
+	private String getElementNameFromWire(String wireName) {
+		Matcher mo = INTRASITE_PATTERN.matcher(wireName);
+		//noinspection ResultOfMethodCallIgnored
+		mo.find();
+		return mo.group(2);
 	}
 
 	private String getPinNameFromWire(String wireName) {

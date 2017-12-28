@@ -31,7 +31,7 @@ public final class SitePinTemplate implements Serializable {
 	private final String name;
 	private final SiteType siteType;
 	private PinDirection direction;
-	private int internalWire;
+	private SiteWireTemplate internalWire;
 
 	public SitePinTemplate(String name, SiteType siteType) {
 		this.name = name;
@@ -46,11 +46,11 @@ public final class SitePinTemplate implements Serializable {
 		return siteType;
 	}
 
-	public int getInternalWire() {
+	public SiteWireTemplate getInternalWire() {
 		return internalWire;
 	}
 
-	public void setInternalWire(int internalWire) {
+	public void setInternalWire(SiteWireTemplate internalWire) {
 		this.internalWire = internalWire;
 	}
 

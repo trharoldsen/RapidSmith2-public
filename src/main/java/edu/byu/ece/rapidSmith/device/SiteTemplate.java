@@ -20,7 +20,7 @@
 
 package edu.byu.ece.rapidSmith.device;
 
-import edu.byu.ece.rapidSmith.design.xdl.XdlAttribute;
+import edu.byu.ece.rapidSmith.util.ArraySet;
 
 import java.io.Serializable;
 import java.util.*;
@@ -30,28 +30,28 @@ import java.util.*;
  *  all sites of a specific type.
  */
 public final class SiteTemplate implements Serializable {
-	private static final long serialVersionUID = -5857292063197088427L;
+	private static final long serialVersionUID = -899254253693716120L;
 	// The type of this site template
 	private SiteType type;
 	// The templates for the BELs in this site template
 	private Map<String, BelTemplate> belTemplates;
 	// Site types that can be placed on sites of this type
-	private SiteType[] compatibleTypes;
+	private ArraySet<SiteType> compatibleTypes;
 	// The intrasite routing graph structure
-	private WireHashMap routing;
-	private WireHashMap reverseWireConnections;
+	private WireHashMap<SiteWireTemplate> routing;
+	private WireHashMap<SiteWireTemplate> reverseWireConnections;
 	// Map of pin names to pin templates for the source pins
 	private Map<String, SitePinTemplate> sources;
 	// Map of pin names to pin templates for the sink pins
 	private Map<String, SitePinTemplate> sinks;
 	// Map of site wires to the pin templates the wires connect to
-	private transient Map<Integer, SitePinTemplate> internalWireToSitePinMap;
+	private transient Map<SiteWireTemplate, SitePinTemplate> internalWireToSitePinMap;
 	// Map of the site wires to the bel pin templates the wire connect to
-	private transient Map<Integer, BelPinTemplate> belPins;
-	// Map of XDL attributes that should be created for each PIP
-	private Map<Integer, Map<Integer, XdlAttribute>> pipAttributes;
+	private transient Map<SiteWireTemplate, BelPinTemplate> belPins;
 	// Map containing the bel routethrough information of the site
-	private Map<Integer, Set<Integer>> belRoutethroughMap;
+	private Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughMap;
+	// Map of the wires in the site to their templates
+	private Map<String, SiteWireTemplate> siteWires;
 
 
 	public SiteType getType() {
@@ -70,27 +70,23 @@ public final class SiteTemplate implements Serializable {
 		this.belTemplates = belTemplates;
 	}
 
-	public SiteType[] getCompatibleTypes() {
+	public ArraySet<SiteType> getCompatibleTypes() {
 		return compatibleTypes;
 	}
 
-	public void setCompatibleTypes(SiteType[] compatibleTypes) {
+	public void setCompatibleTypes(ArraySet<SiteType> compatibleTypes) {
 		this.compatibleTypes = compatibleTypes;
 	}
 
-	public WireHashMap getRouting() {
+	public WireHashMap<SiteWireTemplate> getRouting() {
 		return routing;
 	}
 
-	public void setRouting(WireHashMap routing) {
+	public void setRouting(WireHashMap<SiteWireTemplate> routing) {
 		this.routing = routing;
 	}
 
-	public Set<Integer> getWires() {
-		return routing.keySet();
-	}
-
-	public WireConnection[] getWireConnections(int wire) {
+	public ArraySet<WireConnection<SiteWireTemplate>> getWireConnections(SiteWireTemplate wire) {
 		return routing.get(wire);
 	}
 
@@ -110,62 +106,49 @@ public final class SiteTemplate implements Serializable {
 		this.sinks = sinks;
 	}
 
-	/**
-	 * @deprecated Use {@link #getInternalWireToSitePinMap} instead.
-	 */
-	@Deprecated
-	public Map<Integer, SitePinTemplate> getInternalSiteWireMap() {
-		return getInternalWireToSitePinMap();
-	}
-	
-	public Map<Integer, SitePinTemplate> getInternalWireToSitePinMap() {
+	public Map<SiteWireTemplate, SitePinTemplate> getInternalWireToSitePinMap() {
 		return internalWireToSitePinMap;
 	}
 
-	public Map<Integer, BelPinTemplate> getBelPins() {
+	public Map<SiteWireTemplate, BelPinTemplate> getBelPins() {
 		return belPins;
 	}
 
-	public void setBelPins(Map<Integer, BelPinTemplate> belPins) {
+	public void setBelPins(Map<SiteWireTemplate, BelPinTemplate> belPins) {
 		this.belPins = belPins;
+	}
+
+	public Map<String, SiteWireTemplate> getSiteWires() {
+		return siteWires;
+	}
+
+	public void setSiteWires(Map<String, SiteWireTemplate> siteWires) {
+		this.siteWires = siteWires;
 	}
 
 	/**
 	 * @deprecated Use {@link #setInternalWireToSitePinMap} instead.
 	 */
 	@Deprecated
-	public void setInternalSiteWireMap(Map<Integer, SitePinTemplate> internalWireToSitePinMap) {
+	public void setInternalSiteWireMap(Map<SiteWireTemplate, SitePinTemplate> internalWireToSitePinMap) {
 		setInternalWireToSitePinMap(internalWireToSitePinMap);
 	}
 	
-	public void setInternalWireToSitePinMap(Map<Integer, SitePinTemplate> internalWireToSitePinMap) {
+	public void setInternalWireToSitePinMap(Map<SiteWireTemplate, SitePinTemplate> internalWireToSitePinMap) {
 		this.internalWireToSitePinMap = internalWireToSitePinMap;
 	}
 
-	public Map<Integer, Map<Integer, XdlAttribute>> getPipAttributes() {
-		return pipAttributes;
-	}
-
-	public XdlAttribute getPipAttribute(PIP pip) {
-		return pipAttributes.get(pip.getStartWire().getWireEnum())
-				.get(pip.getEndWire().getWireEnum());
-	}
-
-	public void setPipAttributes(Map<Integer, Map<Integer, XdlAttribute>> pipAttributes) {
-		this.pipAttributes = pipAttributes;
-	}
-
-	public void setBelRoutethroughs(Map<Integer, Set<Integer>> belRoutethroughs) {
+	public void setBelRoutethroughs(Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughs) {
 		this.belRoutethroughMap = belRoutethroughs;
 	}
 
-	public boolean isRoutethrough(Integer startWire, Integer endWire) {
+	public boolean isRoutethrough(SiteWireTemplate startWire, SiteWireTemplate endWire) {
 
 		if (belRoutethroughMap == null) {
 			return false;
 		}
 
-		Set<Integer> sinks = belRoutethroughMap.get(startWire);
+		Set<SiteWireTemplate> sinks = belRoutethroughMap.get(startWire);
 		return sinks != null && sinks.contains(endWire);
 	}
 
@@ -211,30 +194,30 @@ public final class SiteTemplate implements Serializable {
 		return null;
 	}
 
-	public void setReverseWireConnections(WireHashMap reverseWireConnections) {
+	public void setReverseWireConnections(WireHashMap<SiteWireTemplate> reverseWireConnections) {
 		this.reverseWireConnections = reverseWireConnections;
 	}
 
-	public WireConnection[] getReverseWireConnections(int wire) {
+	public ArraySet<WireConnection<SiteWireTemplate>> getReverseWireConnections(SiteWireTemplate wire) {
 		return reverseWireConnections.get(wire);
 	}
 
-	public WireHashMap getReversedWireHashMap() {
+	public WireHashMap<SiteWireTemplate> getReversedWireHashMap() {
 		return reverseWireConnections;
 	}
 
 	// for hessian compression
 	private static class SiteTemplateReplace implements Serializable  {
-		private static final long serialVersionUID = 4409516349602480310L;
+		private static final long serialVersionUID = 5457581694407570610L;
 		private SiteType type;
 		private Collection<BelTemplate> belTemplates;
-		private SiteType[] compatibleTypes;
-		private WireHashMap routing;
-		private WireHashMap reverseWireConnections;
+		private ArraySet<SiteType> compatibleTypes;
+		private WireHashMap<SiteWireTemplate> routing;
+		private WireHashMap<SiteWireTemplate> reverseWireConnections;
 		private Collection<SitePinTemplate> sources;
 		private Collection<SitePinTemplate> sinks;
-		private Map<Integer, Map<Integer, XdlAttribute>> pipAttributes;
-		private Map<Integer, Set<Integer>> belRoutethroughMap;
+		private Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughMap;
+		private Map<String, SiteWireTemplate> siteWires;
 
 		public Object readResolve() {
 			SiteTemplate template = new SiteTemplate();
@@ -261,8 +244,8 @@ public final class SiteTemplate implements Serializable {
 					template.sinks.put(pin.getName(), pin);
 				}
 			}
-			template.pipAttributes = pipAttributes;
 			template.belRoutethroughMap = belRoutethroughMap;
+			template.siteWires = siteWires;
 
 			return template;
 		}
@@ -277,8 +260,8 @@ public final class SiteTemplate implements Serializable {
 		repl.reverseWireConnections = reverseWireConnections; 
 		repl.sources = sources.values();
 		repl.sinks = sinks.values();
-		repl.pipAttributes = pipAttributes;
 		repl.belRoutethroughMap = belRoutethroughMap;
+		repl.siteWires = siteWires;
 
 		return repl;
 	}
