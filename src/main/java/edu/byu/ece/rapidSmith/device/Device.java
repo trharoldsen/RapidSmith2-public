@@ -20,7 +20,7 @@
 package edu.byu.ece.rapidSmith.device;
 
 import edu.byu.ece.rapidSmith.RSEnvironment;
-import edu.byu.ece.rapidSmith.device.creation.ExtendedDeviceInfo;
+import edu.byu.ece.rapidSmith.util.ArraySet;
 import edu.byu.ece.rapidSmith.util.HashPool;
 import edu.byu.ece.rapidSmith.primitiveDefs.PrimitiveDefList;
 
@@ -43,7 +43,7 @@ public class Device implements Serializable {
 	// Versions
 	//========================================================================//
 	/** This is the current device file version (saved in file to ensure proper compatibility) */
-	public static final String LATEST_DEVICE_FILE_VERSION = "1.0";
+	public static final String LATEST_DEVICE_FILE_VERSION = "1.1";
 	/** The current release of the tools */
 	public static final String rapidSmithVersion = "2.0.0";
 	private static final long serialVersionUID = 3980157455165403758L;
@@ -67,13 +67,12 @@ public class Device implements Serializable {
 	/** Keeps track of all the sites on the device */
 	private HashMap<String, Site> sites;
 	/** Keeps track of which Wire objects have a corresponding PIPRouteThrough */
-	private Map<Integer, Map<Integer, PIPRouteThrough>> routeThroughMap;
+	private Map<TileWireTemplate, Map<TileWireTemplate, PIPRouteThrough>> routeThroughMap;
 	/** Templates for each site type in the device */
 	private Map<SiteType, SiteTemplate> siteTemplates;
-	/** The wire enumerator for this device */
-	private WireEnumerator we;
 	/** Primitive defs in the device for reference */
 	private PrimitiveDefList primitiveDefs;
+	private int numUniqueWireTypes;
 
 	//========================================================================//
 	// Objects that are Populated After Parsing
@@ -195,6 +194,17 @@ public class Device implements Serializable {
 	}
 
 	/**
+	 * @return the number of unique wire types (LL17, IMUX_B3) in the device.
+	 */
+	public int getNumUniqueWireTypes() {
+		return numUniqueWireTypes;
+	}
+
+	public void setNumUniqueWireTypes(int numUniqueWireTypes) {
+		this.numUniqueWireTypes = numUniqueWireTypes;
+	}
+
+	/**
 	 * Returns a collection of all tiles in this device.
 	 *
 	 * @return the tiles of this device.
@@ -293,8 +303,16 @@ public class Device implements Serializable {
 		return getRouteThrough(startWire, endWire) != null;
 	}
 
-	boolean isRouteThrough(Integer startWire, Integer endWire) {
-		return getRouteThrough(startWire, endWire) != null;
+	/**
+	 * Checks if the two wires are connected through a RouteThrough.
+	 *
+	 * @param startWire the startWire to test
+	 * @param endWire the endWire to test
+	 * @return true if the PIP is a routeThrough
+	 */
+	boolean isRouteThrough(TileWireTemplate startWire, TileWireTemplate endWire) {
+		Map<TileWireTemplate, PIPRouteThrough> rtMap = routeThroughMap.get(startWire);
+		return rtMap != null && rtMap.containsKey(endWire);
 	}
 
 	/**
@@ -317,22 +335,18 @@ public class Device implements Serializable {
 	 *   route through
 	 */
 	public PIPRouteThrough getRouteThrough(Wire startWire, Wire endWire) {
-		return getRouteThrough(startWire.getWireEnum(), endWire.getWireEnum());
-	}
+		if (startWire.getClass() != TileWire.class)
+			return null;
+		TileWireTemplate tstart = ((TileWire) startWire).getTemplate();
 
-	/**
-	 * Returns the PIPRouteThrough object for a specified WireConnection.
-	 *
-	 * @param startWire the source wire of the corresponding PIPRouteThrough
-	 * @param endWire the sink wire of the corresponding PIPRouteThrough
-	 * @return the PIPRouteThrough object or null if the pip is not a
-	 *   route through
-	 */
-	PIPRouteThrough getRouteThrough(Integer startWire, Integer endWire) {
-		Map<Integer, PIPRouteThrough> sourceMap = routeThroughMap.get(endWire);
+		if (endWire.getClass() != TileWire.class)
+			return null;
+		TileWireTemplate tend = ((TileWire) endWire).getTemplate();
+
+		Map<TileWireTemplate, PIPRouteThrough> sourceMap = routeThroughMap.get(tend);
 		if (sourceMap == null)
 			return null;
-		return sourceMap.get(startWire);
+		return sourceMap.get(tstart);
 	}
 
 	/**
@@ -342,35 +356,14 @@ public class Device implements Serializable {
 	 * @param endWire the sink wire of the route through
 	 * @param rt the route through object
 	 */
-	public void addRouteThrough(Integer startWire, Integer endWire, PIPRouteThrough rt) {
+	public void addRouteThrough(TileWireTemplate startWire, TileWireTemplate endWire, PIPRouteThrough rt) {
 		if (routeThroughMap == null)
 			routeThroughMap = new HashMap<>();
 		if (!routeThroughMap.containsKey(endWire)) {
 			routeThroughMap.put(endWire, new HashMap<>(4));
 		}
-		Map<Integer, PIPRouteThrough> sourceMap = routeThroughMap.get(endWire);
-
-		// TODO remove if clean
-		if (sourceMap.containsKey(startWire) && !Objects.equals(sourceMap.get(startWire), rt))
-			System.out.println("Warning: overriding routethrough is used" + rt);
-
+		Map<TileWireTemplate, PIPRouteThrough> sourceMap = routeThroughMap.get(endWire);
 		sourceMap.put(startWire, rt);
-	}
-
-	/**
-	 * Returns the wire enumerator for this device.
-	 * @return the wire enumerator for this device
-	 */
-	public WireEnumerator getWireEnumerator() {
-		return we;
-	}
-
-	/**
-	 * Sets the wire enumerator for this device.
-	 * @param we the wire enumerator
-	 */
-	public void setWireEnumerator(WireEnumerator we) {
-		this.we = we;
 	}
 
 	/**
@@ -482,7 +475,7 @@ public class Device implements Serializable {
 		}
 
 		// Check for other compatible site types
-		SiteType[] compatibleTypes = getSiteTemplate(type).getCompatibleTypes();
+		ArraySet<SiteType> compatibleTypes = getSiteTemplate(type).getCompatibleTypes();
 		if (compatibleTypes != null) {
 			for (SiteType compatibleType : compatibleTypes) {
 				match = getAllSitesOfType(compatibleType);
@@ -514,7 +507,7 @@ public class Device implements Serializable {
 	 */
 	public void addPackagePin(PackagePin packagePin) {
 		if (this.packagePinMap == null) {
-			this.packagePinMap = new HashMap<String, PackagePin>();
+			this.packagePinMap = new HashMap<>();
 		}
 		this.packagePinMap.put(packagePin.getSite() + "/" + packagePin.getBel(), packagePin);
 	}
@@ -612,7 +605,6 @@ public class Device implements Serializable {
 		this.sitesOfTypeMap = tmp;
 	}
 
-
 	/*
 	 *  Device construction methods
 	 *
@@ -659,7 +651,7 @@ public class Device implements Serializable {
 	 */
 	private void setSiteTypes() {
 		for (Site site : sites.values()) {
-			site.setTypeUnchecked(site.getPossibleTypes()[0]);
+			site.setTypeUnchecked(site.getPossibleTypes().get(0));
 		}
 	}
 
@@ -670,25 +662,25 @@ public class Device implements Serializable {
 	 */
 	private void constructSiteExternalConnections() {
 		// These pools help to reuse instances to reduce memory
-		HashPool<Map<Integer, Integer>> wireSitesPool = new HashPool<>();
-		HashPool<Map<Integer, SitePinTemplate>> sitePinMapPool = new HashPool<>();
-		HashPool<Map<SiteType, Map<Integer, SitePinTemplate>>> extConnPool = new HashPool<>();
+		HashPool<Map<TileWireTemplate, Integer>> wireSitesPool = new HashPool<>();
+		HashPool<Map<TileWireTemplate, SitePinTemplate>> sitePinMapPool = new HashPool<>();
+		HashPool<Map<SiteType, Map<TileWireTemplate, SitePinTemplate>>> extConnPool = new HashPool<>();
 		for (Tile tile : tileMap.values()) {
-			Map<Integer, Integer> wireSites = new HashMap<>();
+			Map<TileWireTemplate, Integer> wireSites = new HashMap<>();
 			if (tile.getSites() == null)
 				continue;
 
 			for (Site site : tile.getSites()) {
-				Map<SiteType, Map<String, Integer>> externalWiresMap = site.getExternalWires();
-				Map<SiteType, Map<Integer, SitePinTemplate>> extConns = new HashMap<>();
+				Map<SiteType, Map<String, TileWireTemplate>> externalWiresMap = site.getExternalWires();
+				Map<SiteType, Map<TileWireTemplate, SitePinTemplate>> extConns = new HashMap<>();
 
 				for (SiteType siteType : site.getPossibleTypes()) {
 					SiteTemplate siteTemplate = getSiteTemplate(siteType);
-					Map<String, Integer> externalWires = externalWiresMap.get(siteType);
+					Map<String, TileWireTemplate> externalWires = externalWiresMap.get(siteType);
 
-					Map<Integer, SitePinTemplate> typeExternalConnections = new HashMap<>();
+					Map<TileWireTemplate, SitePinTemplate> typeExternalConnections = new HashMap<>();
 					for (SitePinTemplate tmplate : siteTemplate.getSinks().values()) {
-						Integer externalWire = externalWires.get(tmplate.getName());
+						TileWireTemplate externalWire = externalWires.get(tmplate.getName());
 						// Since sitePins are created on request based upon the siteTemplate,
 						// the tile needs to know which site in the tile the wire connects to.
 						// Wiresites contains that information stored as the index of the
@@ -699,7 +691,7 @@ public class Device implements Serializable {
 						typeExternalConnections.put(externalWire, tmplate);
 					}
 					for (SitePinTemplate tmplate : siteTemplate.getSources().values()) {
-						Integer externalWire = externalWires.get(tmplate.getName());
+						TileWireTemplate externalWire = externalWires.get(tmplate.getName());
 						wireSites.put(externalWire, site.getIndex());
 						typeExternalConnections.put(externalWire, tmplate);
 					}
@@ -712,11 +704,11 @@ public class Device implements Serializable {
 		}
 	}
 
-	public Map<Integer, Map<Integer, PIPRouteThrough>> getRouteThroughMap() {
+	public Map<TileWireTemplate, Map<TileWireTemplate, PIPRouteThrough>> getRouteThroughMap() {
 		return routeThroughMap;
 	}
 
-	public void setRouteThroughMap(Map<Integer, Map<Integer, PIPRouteThrough>> routeThroughMap) {
+	public void setRouteThroughMap(Map<TileWireTemplate, Map<TileWireTemplate, PIPRouteThrough>> routeThroughMap) {
 		this.routeThroughMap = routeThroughMap;
 	}
 
@@ -729,9 +721,8 @@ public class Device implements Serializable {
 		private String partName;
 		private FamilyType family;
 		private Tile[][] tiles;
-		private Map<Integer, Map<Integer, PIPRouteThrough>> routeThroughMap;
+		private Map<TileWireTemplate, Map<TileWireTemplate, PIPRouteThrough>> routeThroughMap;
 		private Collection<SiteTemplate> siteTemplates;
-		private WireEnumerator we;
 		private PrimitiveDefList primitiveDefs;
 		private Map<String, PackagePin> packagePinMap;
 
@@ -753,7 +744,6 @@ public class Device implements Serializable {
 			for (SiteTemplate template : siteTemplates) {
 				device.siteTemplates.put(template.getType(), template);
 			}
-			device.we = we;
 			device.primitiveDefs = primitiveDefs;
 
 			device.constructTileMap();
@@ -785,7 +775,6 @@ public class Device implements Serializable {
 		repl.tiles = tiles;
 		repl.routeThroughMap = routeThroughMap;
 		repl.siteTemplates = siteTemplates.values();
-		repl.we = we;
 		repl.primitiveDefs = primitiveDefs;
 		repl.packagePinMap = packagePinMap;
 	}

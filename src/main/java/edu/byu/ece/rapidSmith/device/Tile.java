@@ -20,10 +20,11 @@
 package edu.byu.ece.rapidSmith.device;
 
 
+import edu.byu.ece.rapidSmith.util.ArraySet;
+
 import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 /**
@@ -55,16 +56,17 @@ public class Tile implements Serializable {
 	/** An array of sites located within the tile (null if none) */
 	private Site[] sites;
 	/** This variable holds all the wires and their connections within the tile */
-	private WireHashMap wireConnections;
+	private WireHashMap<TileWireTemplate> wireConnections;
+	private WireHashMap<TileWireTemplate> reverseWireConnections;
 
-	private WireHashMap reverseWireConnections;
+	private Map<String, TileWireTemplate> tileWires;
 
 	/**
 	 * Map of the wires to the index of the site the wire connects to.  This is
 	 * needed since it is the job of the site to create the site pin, but we need
 	 * to identify which site the pin exists on first.
 	 */
-	private Map<Integer, Integer> wireSites;
+	private Map<TileWireTemplate, Integer> wireSites;
 
 	/**
 	 * Constructor for the tile class, initializes all the private variables to empty
@@ -188,16 +190,6 @@ public class Tile implements Serializable {
 	}
 
 	/**
-	 * Gets a unique integer address for this tile (useful for representing a tile
-	 * as a single integer).
-	 *
-	 * @return The unique integer address of this tile.
-	 */
-	public int getUniqueAddress() {
-		return dev.getColumns() * this.row + this.column;
-	}
-
-	/**
 	 * This is the Y Coordinate in the tile name (the 5 in INT_X0Y5)
 	 *
 	 * @return the tileRow
@@ -244,7 +236,7 @@ public class Tile implements Serializable {
 	 *
 	 * @return The wires HashMap for this tile.
 	 */
-	public WireHashMap getWireHashMap() {
+	public WireHashMap<TileWireTemplate> getWireHashMap() {
 		return wireConnections;
 	}
 
@@ -254,32 +246,16 @@ public class Tile implements Serializable {
 	 *
 	 * @param wires The new wires to set for this tile.
 	 */
-	public void setWireHashMap(WireHashMap wires) {
+	public void setWireHashMap(WireHashMap<TileWireTemplate> wires) {
 		this.wireConnections = wires;
 	}
 
-	/**
-	 * This method adds a key/value pair to the wires HashMap.
-	 *
-	 * @param src  The wire (or key) of the HashMap to add.
-	 * @param dest The actual wire to add to the value or Wire[] in the HashMap.
-	 */
-	public void addConnection(int src, WireConnection dest) {
-		// Add the wire if it doesn't already exist
-		if (this.wireConnections.get(src) == null) {
-			WireConnection[] tmp = {dest};
-			this.wireConnections.put(src, tmp);
-		} else {
-			WireConnection[] currentConnections = this.wireConnections.get(src);
-			WireConnection[] tmp = new WireConnection[currentConnections.length + 1];
-			int i;
-			for (i = 0; i < currentConnections.length; i++) {
-				tmp[i] = currentConnections[i];
-			}
-			tmp[i] = dest;
-			Arrays.sort(tmp);
-			this.wireConnections.put(src, tmp);
-		}
+	public Map<String, TileWireTemplate> getTileWires() {
+		return tileWires;
+	}
+
+	public void setTileWires(Map<String, TileWireTemplate> tileWires) {
+		this.tileWires = tileWires;
 	}
 
 	/**
@@ -287,9 +263,7 @@ public class Tile implements Serializable {
 	 * @return Collection of TileWire objects.
 	 */
 	public Collection<Wire> getWires() {
-		Stream<Integer> allWires = wireConnections.keySet().stream();
-		return allWires
-			.distinct()
+		return tileWires.values().stream()
 			.map(w -> new TileWire(this, w))
 			.collect(Collectors.toCollection(ArrayList::new));
 	}
@@ -301,10 +275,10 @@ public class Tile implements Serializable {
 	 * @return the wire in this tile with the given name
 	 */
 	public TileWire getWire(String wireName) {
-		Integer wireEnum = getDevice().getWireEnumerator().getWireEnum(wireName);
-		if (wireEnum == null)
+		TileWireTemplate template = tileWires.get(wireName);
+		if (template == null)
 			return null;
-		return new TileWire(this, wireEnum);
+		return new TileWire(this, template);
 	}
 
 	/**
@@ -312,10 +286,7 @@ public class Tile implements Serializable {
 	 * @return true if the wire with the given name exists in this tile
 	 */
 	public boolean hasWire(String wireName) {
-		// TODO wireConnections.keySet method creates a hashSet.  We can speed this
-		// up by adding a containsKey to the WireConnections class
-		Integer wireEnum = getDevice().getWireEnumerator().getWireEnum(wireName);
-		return wireEnum != null && wireConnections.keySet().contains(wireEnum);
+		return tileWires.containsKey(wireName);
 	}
 
 	/**
@@ -325,23 +296,20 @@ public class Tile implements Serializable {
 	 * @param wire A wire in this tile to query its potential connections.
 	 * @return An array of wires which connect to the given wire.
 	 */
-	public WireConnection[] getWireConnections(int wire) {
-		if (wireConnections == null)
-			return new WireConnection[0];
+	ArraySet<WireConnection<TileWireTemplate>> getWireConnections(TileWireTemplate wire) {
+		Objects.requireNonNull(wire);
 		return wireConnections.get(wire);
 	}
 
-	public WireHashMap getReverseWireHashMap() {
+	public WireHashMap<TileWireTemplate> getReverseWireHashMap() {
 		return reverseWireConnections;
 	}
 
-	public WireConnection[] getReverseConnections(int wire) {
-		if (reverseWireConnections == null)
-			return new WireConnection[0];
+	ArraySet<WireConnection<TileWireTemplate>> getReverseConnections(TileWireTemplate wire) {
 		return reverseWireConnections.get(wire);
 	}
 
-	public void setReverseWireConnections(WireHashMap reverseWireConnections) {
+	public void setReverseWireConnections(WireHashMap<TileWireTemplate> reverseWireConnections) {
 		this.reverseWireConnections = reverseWireConnections;
 	}
 
@@ -353,14 +321,12 @@ public class Tile implements Serializable {
 	 * @return True if the connection exists in this tile, false otherwise.
 	 */
 	public boolean hasPIP(PIP pip) {
-		return hasConnection(pip.getStartWire().getWireEnum(), pip.getEndWire().getWireEnum());
-	}
-
-	private boolean hasConnection(int startWire, int endWire) {
-		WireConnection[] wireConns = wireConnections.get(startWire);
-		if (wireConns != null && wireConns.length >= 0) {
+		TileWireTemplate startWire = ((TileWire) pip.getStartWire()).getTemplate();
+		TileWireTemplate endWire = ((TileWire) pip.getEndWire()).getTemplate();
+		Set<WireConnection<TileWireTemplate>> wireConns = wireConnections.get(startWire);
+		if (wireConns != null) {
 			for (WireConnection wc : wireConns) {
-				if (wc.getWire() == endWire && wc.isPIP()) {
+				if (wc.getSinkWire().equals(endWire) && wc.isPIP()) {
 					return true;
 				}
 			}
@@ -379,11 +345,11 @@ public class Tile implements Serializable {
 	 */
 	public ArrayList<PIP> getPIPs() {
 		ArrayList<PIP> pips = new ArrayList<>();
-		for (Integer startWire : wireConnections.keySet()) {
+		for (TileWireTemplate startWire : wireConnections.keySet()) {
 			TileWire start = new TileWire(this, startWire);
-			for (WireConnection endWire : wireConnections.get(startWire)) {
+			for (WireConnection<TileWireTemplate> endWire : wireConnections.get(startWire)) {
 				if (endWire.isPIP()) {
-					TileWire end = new TileWire(this, endWire.getWire());
+					TileWire end = new TileWire(this, endWire.getSinkWire());
 					pips.add(new PIP(start, end));
 				}
 			}
@@ -448,7 +414,7 @@ public class Tile implements Serializable {
 	 * @param wire the wire of interest
 	 * @return the site pin the specified wire connects to
 	 */
-	public SitePin getSitePinOfWire(Integer wire) {
+	public SitePin getSitePinOfWire(TileWireTemplate wire) {
 		if (wireSites == null || !wireSites.containsKey(wire))
 			return null;
 		Integer siteIndex = wireSites.get(wire);
@@ -456,17 +422,17 @@ public class Tile implements Serializable {
 		return site.getSitePinOfExternalWire(site.getType(), wire);
 	}
 
-	public Collection<SitePin> getSitePinsOfWire(Integer wire) {
+	public Collection<SitePin> getSitePinsOfWire(TileWireTemplate wire) {
 		if (wireSites == null || !wireSites.containsKey(wire))
 			return Collections.emptyList();
 		Integer siteIndex = wireSites.get(wire);
 		Site site = getSites()[siteIndex];
-		return Arrays.stream(site.getPossibleTypes())
+		return site.getPossibleTypes().stream()
 			.map(it -> site.getSitePinOfExternalWire(it, wire))
 			.collect(Collectors.toList());
 	}
 
-	public SitePin getSitePinOfWire(SiteType siteType, Integer wire) {
+	public SitePin getSitePinOfWire(SiteType siteType, TileWireTemplate wire) {
 		if (wireSites == null || !wireSites.containsKey(wire))
 			return null;
 		Integer siteIndex = wireSites.get(wire);
@@ -475,11 +441,11 @@ public class Tile implements Serializable {
 	}
 
 	// Used by device.constructSiteExternalConnections
-	public void setWireSites(Map<Integer, Integer> wireSites) {
+	public void setWireSites(Map<TileWireTemplate, Integer> wireSites) {
 		this.wireSites = wireSites;
 	}
 
-	public Map<Integer, Integer> getWireSites() {
+	public Map<TileWireTemplate, Integer> getWireSites() {
 		return wireSites;
 	}
 
@@ -498,8 +464,7 @@ public class Tile implements Serializable {
 
 	@Override
 	public int hashCode() {
-		return column*1000+row;
-		//return Objects.hash(name);
+		return column*383+row;
 	}
 
 	@Override
@@ -508,14 +473,13 @@ public class Tile implements Serializable {
 	}
 
 	private static class TileReplace implements Serializable {
-		private static final long serialVersionUID = 8084308269914591921L;
+		private static final long serialVersionUID = -3588973393824445640L;
 		private String name;
 		private TileType type;
 		private Site[] sites;
-		private WireHashMap wireConnections;
-		private WireHashMap reverseConnections;
-		private int[] sinks;
-		private int[] sources;
+		private WireHashMap<TileWireTemplate> wireConnections;
+		private WireHashMap<TileWireTemplate> reverseConnections;
+		private Map<String, TileWireTemplate> tileWires;
 
 		@SuppressWarnings("unused")
 		private Tile readResolve() {
@@ -531,6 +495,7 @@ public class Tile implements Serializable {
 			}
 			tile.wireConnections = wireConnections;
 			tile.reverseWireConnections = reverseConnections;
+			tile.tileWires = tileWires;
 
 			return tile;
 		}
@@ -544,8 +509,7 @@ public class Tile implements Serializable {
 		repl.sites = sites;
 		repl.wireConnections = wireConnections;
 		repl.reverseConnections = reverseWireConnections;
-		repl.sinks = null;
-		repl.sources = null;
+		repl.tileWires = tileWires;
 
 		return repl;
 	}

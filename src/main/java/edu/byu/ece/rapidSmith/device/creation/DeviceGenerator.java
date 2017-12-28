@@ -21,9 +21,9 @@
 package edu.byu.ece.rapidSmith.device.creation;
 
 import edu.byu.ece.rapidSmith.RSEnvironment;
-import edu.byu.ece.rapidSmith.design.xdl.XdlAttribute;
 import edu.byu.ece.rapidSmith.device.*;
 import edu.byu.ece.rapidSmith.primitiveDefs.*;
+import edu.byu.ece.rapidSmith.util.ArraySet;
 import edu.byu.ece.rapidSmith.util.Exceptions;
 import edu.byu.ece.rapidSmith.util.HashPool;
 import edu.byu.ece.rapidSmith.util.PartNameTools;
@@ -44,7 +44,7 @@ import static edu.byu.ece.rapidSmith.util.Exceptions.FileFormatException;
  * <p>
  * Steps
  * 1) First parse
- * a) WireEnumeratorListener
+ * a) WireTemplateListener
  * i) Extract wire names, types, and directions from XDLRC
  * ii) Enumerate each wire name in device
  * b) TileAndPrimitiveSiteListener
@@ -65,27 +65,28 @@ import static edu.byu.ece.rapidSmith.util.Exceptions.FileFormatException;
  */
 public final class DeviceGenerator {
 	private Device device;
-	private WireEnumerator we;
 	private Document familyInfo;
 
 	private static final int PIP_CAPACITY = 40000;
 	private final Set<String> pipSources = new HashSet<>(PIP_CAPACITY);
 	private final Set<String> pipSinks = new HashSet<>(PIP_CAPACITY);
 
-	/** Keeps track of each unique Wire object in the device */
-	private HashPool<WireConnection> wirePool;
-	/** Keeps track of each unique Wire[] object in the device */
-	private HashPool<WireArray> wireArrayPool;
-	/** Keeps track of all PIPRouteThrough objects */
-	private HashPool<PIPRouteThrough> routeThroughPool;
-	/** Keeps Track of all unique Wire Lists that exist in Tiles */
-	private HashPool<WireHashMap> tileWiresPool;
+	private HashMap<String, TileWireTemplate> tileWireTemplates;
+	private HashMap<String, SiteWireTemplate> siteWireTemplates;
+	private int numUniqueWireTypes;
 
-	private HashPool<Map<String, Integer>> externalWiresPool;
-	private HashPool<Map<SiteType, Map<String, Integer>>> externalWiresMapPool;
-	private HashPool<AlternativeTypes> alternativeTypesPool;
-	private Set<Integer> siteWireSourceSet;
-	private Set<Integer> siteWireSinkSet;
+	/** Keeps track of each unique object in the device */
+	private HashPool<WireConnection<TileWireTemplate>> tileConnPool;
+	private HashPool<ArraySet<WireConnection<TileWireTemplate>>> tileConnSetPool;
+	private HashPool<WireHashMap<TileWireTemplate>> tileWireMapPool;
+
+	private HashPool<PIPRouteThrough> routeThroughPool;
+	private HashPool<Map<String, TileWireTemplate>> externalWiresPool;
+	private HashPool<Map<SiteType, Map<String, TileWireTemplate>>> externalWiresMapPool;
+	private HashPool<ArraySet<SiteType>> alternativeTypesPool;
+
+	private Set<TileWireTemplate> siteWireSourceSet;
+	private Set<TileWireTemplate> siteWireSinkSet;
 
 	/**
 	 * Generates and returns the Device created from the XDLRC at the specified
@@ -98,16 +99,19 @@ public final class DeviceGenerator {
 		System.out.println("Generating device for file " + xdlrcPath.getFileName());
 
 		this.device = new Device();
-		this.we = new WireEnumerator();
-		this.device.setWireEnumerator(we);
 
-		this.wirePool = new HashPool<>();
-		this.wireArrayPool = new HashPool<>();
+		this.tileConnPool = new HashPool<>();
+		this.tileConnSetPool = new HashPool<>();
+		this.tileWireMapPool = new HashPool<>();
+
 		this.routeThroughPool = new HashPool<>();
-		this.tileWiresPool = new HashPool<>();
 		this.externalWiresPool = new HashPool<>();
 		this.externalWiresMapPool = new HashPool<>();
 		this.alternativeTypesPool = new HashPool<>();
+
+		this.tileWireTemplates = new HashMap<>(50000);
+		this.siteWireTemplates = new HashMap<>(10000);
+		this.numUniqueWireTypes = 0;
 
 		// Requires a two part iteration, the first to obtain the tiles and sites,
 		// and the second to gather the wires.  Two parses are required since the
@@ -115,7 +119,7 @@ public final class DeviceGenerator {
 		XDLRCParser parser = new XDLRCParser();
 		System.out.println("Starting first pass");
 		parser.registerListener(new FamilyTypeListener());
-		parser.registerListener(new WireEnumeratorListener());
+		parser.registerListener(new WireTemplateListener());
 		parser.registerListener(new TileAndSiteGeneratorListener());
 		parser.registerListener(new PrimitiveDefsListener());
 		parser.registerListener(new XDLRCParseProgressListener());
@@ -133,6 +137,7 @@ public final class DeviceGenerator {
 		System.out.println("Starting second pass");
 		parser.registerListener(new WireConnectionGeneratorListener());
 		parser.registerListener(new SourceAndSinkListener());
+		parser.registerListener(new TileWireListener());
 		parser.registerListener(new XDLRCParseProgressListener());
 		try {
 			parser.parse(xdlrcPath);
@@ -140,26 +145,24 @@ public final class DeviceGenerator {
 			throw new IOException("Error handling file " + xdlrcPath, e);
 		}
 
-		Map<Tile, Map<Integer, Set<WireConnection>>> wcsToAdd = getWCsToAdd();
-		Map<Tile, Map<Integer, Set<WireConnection>>> wcsToRemove = getWCsToRemove();
+		Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> wcsToAdd = getWCsToAdd();
+		Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> wcsToRemove = getWCsToRemove();
 
 		// These take up a lot of memory and we're going to regenerate each of these in the
 		// next step.  Clearing these will allow for better garbage collection
-		wirePool = new HashPool<>();
-		wireArrayPool = new HashPool<>();
-		tileWiresPool = new HashPool<>();
+		tileConnPool = new HashPool<>();
+		tileConnSetPool = new HashPool<>();
+		tileWireMapPool = new HashPool<>();
 
 		System.out.println("Parsing Device Info file");
-		if (parseDeviceInfo(device) == false) {
+		if (!parseDeviceInfo(device)) {
 			System.err.println("[Warning]: The device info file for the part " + device.getPartName() + " cannot be found.");
 		}
 				
 		makeWireCorrections(wcsToAdd, wcsToRemove);
-	
+
+		device.setNumUniqueWireTypes(numUniqueWireTypes);
 		device.constructDependentResources();
-		
-		// free unneeded pools for garbage collection when done with
-		routeThroughPool = null;
 
 		System.out.println("Finishing device creation process");
 
@@ -177,7 +180,8 @@ public final class DeviceGenerator {
 		// Create a template for each primitive type
 		for (PrimitiveDef def : device.getPrimitiveDefs()) {
 			Element ptEl = getSiteTypeEl(def.getType());
-			
+
+			Map<String, SiteWireTemplate> siteWires = new HashMap<>();
 			SiteTemplate template = new SiteTemplate();
 			template.setType(def.getType());
 			template.setBelTemplates(createBelTemplates(def, ptEl));
@@ -186,12 +190,13 @@ public final class DeviceGenerator {
 
 			Element compatTypesEl = ptEl.getChild("compatible_types");
 			if (compatTypesEl != null) {
-				List<SiteType> compatibleTypes = compatTypesEl.getChildren("compatible_type").stream()
-						.map(compatTypeEl -> SiteType.valueOf(family, compatTypeEl.getText()))
-						.collect(Collectors.toList());
-				template.setCompatibleTypes(compatibleTypes.toArray(
-						new SiteType[compatibleTypes.size()]));
+				ArraySet<SiteType> compatTypes = compatTypesEl.getChildren("compatible_type").stream()
+					.map(compatTypeEl -> SiteType.valueOf(family, compatTypeEl.getText()))
+					.collect(Collectors.toCollection(ArraySet::new));
+				compatTypes.trimToSize();
+				template.setCompatibleTypes(compatTypes);
 			}
+			template.setSiteWires(siteWires);
 
 			siteTemplates.put(def.getType(), template);
 		}
@@ -227,7 +232,7 @@ public final class DeviceGenerator {
 				BelPinTemplate belPin = new BelPinTemplate(id, pin.getInternalName());
 				belPin.setDirection(pin.getDirection());
 				String wireName = getIntrasiteWireName(def.getType(), el.getName(), belPin.getName());
-				belPin.setWire(we.getWireEnum(wireName));
+				belPin.setWire(siteWireTemplates.get(wireName));
 				if (pin.getDirection() == PinDirection.IN || pin.getDirection() == PinDirection.INOUT)
 					sinks.put(belPin.getName(), belPin);
 				if (pin.getDirection() == PinDirection.OUT || pin.getDirection() == PinDirection.INOUT)
@@ -298,15 +303,14 @@ public final class DeviceGenerator {
 
 	/**
 	 * Creates the wire connections connecting the BELs and muxes in the primitive type.
-	 *
-	 * @param def      the primitive def for the current type
+	 *  @param def      the primitive def for the current type
 	 * @param template the template for the current type
 	 */
-	private void createAndSetIntrasiteRouting(PrimitiveDef def, SiteTemplate template, Element siteElement) {
-		WireHashMap wireMap = new WireHashMap();
-		// Stores the attributes associated with the subsite PIPs for converting
-		// back to XDL
-		Map<Integer, Map<Integer, XdlAttribute>> muxes = new HashMap<>();
+	private void createAndSetIntrasiteRouting(
+		PrimitiveDef def, SiteTemplate template, Element siteElement
+	) {
+		WireHashMap<SiteWireTemplate> wireMap = new WireHashMap<>();
+		Map<String, SiteWireTemplate> siteWires = new HashMap<>(1000);
 
 		/*
 		    We build the routing structure by find all of the wire sources and
@@ -317,20 +321,25 @@ public final class DeviceGenerator {
 		for (PrimitiveElement el : def.getElements()) {
 			String elName = el.getName();
 			if (el.isPin() && !def.getPin(elName).isOutput()) { // input site pin
-				addWireConnectionsForElement(def, el, wireMap);
+				addWireConnectionsForElement(def, el, wireMap, siteWires);
 			} else if (el.isBel()) {
-				addWireConnectionsForElement(def, el, wireMap);
+				addWireConnectionsForElement(def, el, wireMap, siteWires);
 			} else if (el.isMux()) {
-				addWireConnectionsForElement(def, el, wireMap);
-				createAndAddMuxPips(def, el, wireMap, muxes);
+				addWireConnectionsForElement(def, el, wireMap, siteWires);
+				createAndAddMuxPips(def, el, wireMap, siteWires);
 			}
 		}
 		
-		Map<Integer, Set<Integer>> belRoutethroughMap = createBelRoutethroughs(template, siteElement, wireMap); 
-		
-		template.setBelRoutethroughs(belRoutethroughMap); 
+		Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughMap =
+			createBelRoutethroughs(template, siteElement, wireMap, siteWires);
+
+		// reduce memory footprint of routing
+		wireMap.values().forEach(s -> s.trimToSize());
+
+		// update the templates with the created structures
+		template.setBelRoutethroughs(belRoutethroughMap);
 		template.setRouting(wireMap);
-		template.setPipAttributes(muxes);
+		template.setSiteWires(siteWires);
 	}
 
 	/**
@@ -338,11 +347,16 @@ public final class DeviceGenerator {
 	 * @param template Site Template to generate routethroughs for
 	 * @param siteElement XML document element of the site in the familyinfo.xml file
 	 * @param wireMap WireHashMap of the site template
+	 * @param siteWires wires in this site
 	 * @return A Map of BEL routethroughs
 	 */
-	private Map <Integer, Set<Integer>> createBelRoutethroughs(SiteTemplate template, Element siteElement, WireHashMap wireMap) {
+	private Map <SiteWireTemplate, Set<SiteWireTemplate>> createBelRoutethroughs(
+		SiteTemplate template, Element siteElement,
+		WireHashMap<SiteWireTemplate> wireMap,
+		Map<String, SiteWireTemplate> siteWires
+	) {
 		
-		Map <Integer, Set<Integer>> belRoutethroughMap = new HashMap<>();
+		Map <SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughMap = new HashMap<>();
 		
 		for (Element belEl : siteElement.getChild("bels").getChildren("bel")) {
 			String belName = belEl.getChildText("name");
@@ -359,41 +373,37 @@ public final class DeviceGenerator {
 					
 					String inputWireName = getIntrasiteWireName(template.getType(), belName, inputPin);
 					String outputWireName = getIntrasiteWireName(template.getType(), belName, outputPin);
-							
-					Integer startEnum = we.getWireEnum(inputWireName); 
-					Integer endEnum = we.getWireEnum(outputWireName);
-										
+
+					SiteWireTemplate startTemplate = siteWireTemplates.get(inputWireName);
+					SiteWireTemplate endTemplate = siteWireTemplates.get(outputWireName);
+					siteWires.put(inputWireName, startTemplate);
+					siteWires.put(outputWireName, endTemplate);
+
 					// If the wire names for the routethrough do not exist, throw a parse exception telling the user 
-					if (startEnum == null) {
+					if (startTemplate == null) {
 						throw new Exceptions.ParseException(String.format("Cannot find intrasite wire \"%s\" for bel routethrough \"%s:%s:%s\". "
 								+ "Check the familyInfo.xml file for this routethrough and make sure the connections are correct.", 
 								inputWireName, template.getType(), inputPin, outputPin));
-					} else if (endEnum == null) {
+					} else if (endTemplate == null) {
 						throw new Exceptions.ParseException(String.format("Cannot find intrasite wire \"%s\" for bel routethrough \"%s:%s:%s\". "
 								+ "Check the familyInfo.xml file for this routethrough and make sure the connections are correct.", 
 								outputWireName, template.getType(), inputPin, outputPin));
 					}
 					
 					// add the routethrough to the routethrough map; 
-					Set<Integer> sinkWires = belRoutethroughMap.computeIfAbsent(startEnum, k -> new HashSet<>());
-					sinkWires.add(endEnum);
+					Set<SiteWireTemplate> sinkWires = belRoutethroughMap.computeIfAbsent(
+						startTemplate, k -> new HashSet<>());
+					sinkWires.add(endTemplate);
 				}
 			}
 		}
 		
 		// create a new wire connection for each routethrough and adds them to the wire map
-		for (Integer startWire : belRoutethroughMap.keySet()) {
-			
-			Set<Integer> sinkWires = belRoutethroughMap.get(startWire);				
-			WireConnection[] wireConnections = new WireConnection[sinkWires.size()];
-			
-			int index = 0; 
-			for (Integer sink : sinkWires) {
-				// routethroughs will be considered as pips in rapidSmith
-				wireConnections[index] =  new WireConnection(sink, 0, 0, true);
-				index++;
-			}
-			
+		for (SiteWireTemplate startWire : belRoutethroughMap.keySet()) {
+
+			ArraySet<WireConnection<SiteWireTemplate>> wireConnections = belRoutethroughMap.get(startWire).stream()
+				.map(sink -> new WireConnection<>(sink, 0, 0, true))
+				.collect(Collectors.toCollection(ArraySet::new));
 			wireMap.put(startWire, wireConnections);
 		}
 		
@@ -405,46 +415,55 @@ public final class DeviceGenerator {
 	 * Creates a PIP wire connection from each input of the mux to the output.
 	 * Additionally creates the attribute that would represent this connection
 	 * in XDL and adds it to the muxes structure.
-	 *
 	 * @param def     the primitive def for the current type
 	 * @param el      the mux element from the primitive def
 	 * @param wireMap the map of wire connections for the site template
-	 * @param muxes   the connection to attribute map for the site template
+	 * @param siteWires wires in this site
 	 */
-	private void createAndAddMuxPips(PrimitiveDef def, PrimitiveElement el,
-	                                 WireHashMap wireMap, Map<Integer, Map<Integer, XdlAttribute>> muxes) {
+	private void createAndAddMuxPips(
+		PrimitiveDef def, PrimitiveElement el,
+		WireHashMap<SiteWireTemplate> wireMap,
+		Map<String, SiteWireTemplate> siteWires
+	) {
 		String elName = el.getName();
 		String sinkName = getIntrasiteWireName(def.getType(), elName, getOutputPin(el));
-		Integer sinkWire = we.getWireEnum(sinkName);
-		WireConnection[] wcs = {new WireConnection(sinkWire, 0, 0, true)};
+		SiteWireTemplate sinkWire = siteWireTemplates.get(sinkName);
+		ArraySet<WireConnection<SiteWireTemplate>> wcs = new ArraySet<>(1);
+		wcs.add(new WireConnection<>(sinkWire, 0, 0, true));
+		siteWires.put(sinkName, sinkWire);
+
 		for (PrimitiveDefPin pin : el.getPins()) {
 			if (pin.isOutput())
 				continue;
 			String srcName = getIntrasiteWireName(def.getType(), elName, pin.getInternalName());
-			int srcWire = we.getWireEnum(srcName);
+			SiteWireTemplate srcWire = siteWireTemplates.get(srcName);
 			wireMap.put(srcWire, wcs);
-
-			XdlAttribute attr = new XdlAttribute(elName, "", pin.getInternalName());
-			Map<Integer, XdlAttribute> sinkMap = muxes.computeIfAbsent(srcWire, k -> new HashMap<>());
-			sinkMap.put(sinkWire, attr);
+			siteWires.put(srcName, srcWire);
 		}
 	}
 
 	/**
 	 * Gets the wire connections for this element and adds them to the wire map
-	 *
-	 * @param def     the primitive def for the current type
+	 *  @param def     the primitive def for the current type
 	 * @param el      the current element from the primitive def
 	 * @param wireMap the map of wire connections for the site template
+	 * @param siteWires wires in the site
 	 */
 	private void addWireConnectionsForElement(
-			PrimitiveDef def, PrimitiveElement el, WireHashMap wireMap) {
-		Map<Integer, List<WireConnection>> wcsMap;
+		PrimitiveDef def, PrimitiveElement el, WireHashMap<SiteWireTemplate> wireMap,
+		Map<String, SiteWireTemplate> siteWires
+	) {
+		Map<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> wcsMap;
 		wcsMap = getWireConnectionsForElement(def, el);
-		for (Map.Entry<Integer, List<WireConnection>> entry : wcsMap.entrySet()) {
-			List<WireConnection> wcsList = entry.getValue();
-			WireConnection[] wcs = wcsList.toArray(new WireConnection[wcsList.size()]);
-			wireMap.put(entry.getKey(), wcs);
+		for (Map.Entry<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> entry : wcsMap.entrySet()) {
+			SiteWireTemplate template = entry.getKey();
+			wireMap.put(template, entry.getValue());
+			siteWires.put(template.getName(), template);
+
+			for (WireConnection<SiteWireTemplate> wc : entry.getValue()) {
+				SiteWireTemplate sink = wc.getSinkWire();
+				siteWires.put(sink.getName(), sink);
+			}
 		}
 	}
 
@@ -455,18 +474,20 @@ public final class DeviceGenerator {
 	 * @param el  the current element from the primitive def
 	 * @return all of the wire connection coming from the element
 	 */
-	private Map<Integer, List<WireConnection>> getWireConnectionsForElement(
-			PrimitiveDef def, PrimitiveElement el) {
-		Map<Integer, List<WireConnection>> wcsMap = new HashMap<>();
+	private Map<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> getWireConnectionsForElement(
+			PrimitiveDef def, PrimitiveElement el
+	) {
+		Map<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> wcsMap = new HashMap<>();
 		for (PrimitiveConnection conn : el.getConnections()) {
 			// Only handle connections this element sources
 			if (!conn.isForwardConnection())
 				continue;
 
-			Integer source = getPinSource(def, conn);
-			Integer sink = getPinSink(def, conn);
-			List<WireConnection> wcs = wcsMap.computeIfAbsent(source, k -> new ArrayList<>());
-			wcs.add(new WireConnection(sink, 0, 0, false));
+			SiteWireTemplate source = getPinSource(def, conn);
+			SiteWireTemplate sink = getPinSink(def, conn);
+			ArraySet<WireConnection<SiteWireTemplate>> wcs =
+				wcsMap.computeIfAbsent(source, k -> new ArraySet<>());
+			wcs.add(new WireConnection<>(sink, 0, 0, false));
 		}
 		return wcsMap;
 	}
@@ -479,18 +500,18 @@ public final class DeviceGenerator {
 		return null;
 	}
 
-	private Integer getPinSource(PrimitiveDef def, PrimitiveConnection conn) {
+	private SiteWireTemplate getPinSource(PrimitiveDef def, PrimitiveConnection conn) {
 		String element = conn.getElement0();
 		String pin = conn.getPin0();
 		String wireName = getIntrasiteWireName(def.getType(), element, pin);
-		return we.getWireEnum(wireName);
+		return siteWireTemplates.get(wireName);
 	}
 
-	private Integer getPinSink(PrimitiveDef def, PrimitiveConnection conn) {
+	private SiteWireTemplate getPinSink(PrimitiveDef def, PrimitiveConnection conn) {
 		String element = conn.getElement1();
 		String pin = conn.getPin1();
 		String wireName = getIntrasiteWireName(def.getType(), element, pin);
-		return we.getWireEnum(wireName);
+		return siteWireTemplates.get(wireName);
 	}
 
 	/**
@@ -505,7 +526,7 @@ public final class DeviceGenerator {
 			SitePinTemplate template = new SitePinTemplate(name, def.getType());
 			template.setDirection(pin.getDirection());
 			String wireName = getIntrasiteWireName(def.getType(), name, name);
-			template.setInternalWire(we.getWireEnum(wireName));
+			template.setInternalWire(siteWireTemplates.get(wireName));
 			if (pin.getDirection() == PinDirection.IN)
 				sinks.put(name, template);
 			else
@@ -532,26 +553,26 @@ public final class DeviceGenerator {
 		throw new FileFormatException("no site type " + type.name() + " in familyInfo.xml");
 	}
 
-	private Map<Tile, Map<Integer, Set<WireConnection>>> getWCsToAdd() {
-		Map<Tile, Map<Integer, Set<WireConnection>>> wcsToAdd = new HashMap<>();
+	private Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> getWCsToAdd() {
+		Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> wcsToAdd = new HashMap<>();
 
 		for (Tile tile : device.getTileMap().values()) {
 			if (tile.getWireHashMap() == null)
 				continue;
 
-			Map<Integer, Set<WireConnection>> tileWCsToAdd = new HashMap<>();
+			Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>> tileWCsToAdd = new HashMap<>();
 			// Traverse all non-PIP wire connections starting at this source wire.  If any
 			// such wire connections lead to a sink wire that is not already a connection of
 			// the source wire, mark it to be added as a connection
 			for (Wire wire : tile.getWires()) {
-				int wireEnum = wire.getWireEnum();
-				Set<WireConnection> wcToAdd = new HashSet<>();
-				Set<WireConnection> checkedConnections = new HashSet<>();
-				Queue<WireConnection> connectionsToFollow = new LinkedList<>();
+				TileWireTemplate wireEnum = ((TileWire) wire).getTemplate();
+				Set<WireConnection<TileWireTemplate>> wcToAdd = new HashSet<>();
+				Set<WireConnection<TileWireTemplate>> checkedConnections = new HashSet<>();
+				Queue<WireConnection<TileWireTemplate>> connectionsToFollow = new LinkedList<>();
 
 				// Add the wire to prevent building a connection back to itself
-				checkedConnections.add(new WireConnection(wireEnum, 0, 0, false));
-				for (WireConnection wc : tile.getWireConnections(wireEnum)) {
+				checkedConnections.add(new WireConnection<>(wireEnum, 0, 0, false));
+				for (WireConnection<TileWireTemplate> wc : tile.getWireHashMap().get(wireEnum)) {
 					if (!wc.isPIP()) {
 						checkedConnections.add(wc);
 						connectionsToFollow.add(wc);
@@ -559,24 +580,25 @@ public final class DeviceGenerator {
 				}
 
 				while (!connectionsToFollow.isEmpty()) {
-					WireConnection midwc = connectionsToFollow.remove();
+					WireConnection<TileWireTemplate> midwc = connectionsToFollow.remove();
 					Tile midTile = midwc.getTile(tile);
-					Integer midWire = midwc.getWire();
+					TileWireTemplate midWire = midwc.getSinkWire();
 
 					// Dead end checks
-					if (midTile.getWireHashMap() == null || midTile.getWireConnections(midWire) == null)
+					if (midTile.getWireHashMap() == null || midTile.getWireHashMap().get(midWire) == null)
 						continue;
 
-					for (WireConnection sinkwc : midTile.getWireConnections(midWire)) {
+					for (WireConnection<TileWireTemplate> sinkwc : midTile.getWireHashMap().get(midWire)) {
 						if (sinkwc.isPIP()) continue;
 
-						Integer sinkWire = sinkwc.getWire();
+						TileWireTemplate sinkWire = sinkwc.getSinkWire();
 						Tile sinkTile = sinkwc.getTile(midTile);
 						int colOffset = midwc.getColumnOffset() + sinkwc.getColumnOffset();
 						int rowOffset = midwc.getRowOffset() + sinkwc.getRowOffset();
 
 						// This represents the wire connection from the original source to the sink wire
-						WireConnection source2sink = new WireConnection(sinkWire, rowOffset, colOffset, false);
+						WireConnection<TileWireTemplate> source2sink =
+							new WireConnection<>(sinkWire, rowOffset, colOffset, false);
 						boolean wirePreviouslyChecked = !checkedConnections.add(source2sink);
 
 						// Check if we've already processed this guy and process him if we haven't
@@ -587,7 +609,7 @@ public final class DeviceGenerator {
 						// Only add the connection if the wire is a sink.  Other connections are
 						// useless for wire traversing.
 						if (wireIsSink(sinkTile, sinkWire))
-							wcToAdd.add(wirePool.add(source2sink));
+							wcToAdd.add(tileConnPool.add(source2sink));
 					}
 				}
 
@@ -603,34 +625,34 @@ public final class DeviceGenerator {
 		return wcsToAdd;
 	}
 
-	private Map<Tile, Map<Integer, Set<WireConnection>>> getWCsToRemove() {
-		Map<Tile, Map<Integer, Set<WireConnection>>> wcsToRemove = new HashMap<>();
+	private Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> getWCsToRemove() {
+		Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> wcsToRemove = new HashMap<>();
 
 		// Traverse the entire device and find which wires to remove first
 		for (Tile tile : device.getTileMap().values()) {
 			if (tile.getWireHashMap() == null)
 				continue;
 
-			Map<Integer, Set<WireConnection>> tileWCsToRemove = new HashMap<>();
+			Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>> tileWCsToRemove = new HashMap<>();
 
 			// Create a set of wires that can be driven by other wires within the tile
 			// We need this to do a fast look up later on
-			Set<Integer> sourceWires = getSourceWiresOfTile(tile);
+			Set<TileWireTemplate> sourceWires = getSourceWiresOfTile(tile);
 
 			// Identify any wire connections that are not a "source" wire to "sink" wire
 			// connection.
 			Set<Wire> wires = new HashSet<>(tile.getWires());
 
 			for (Wire wire : wires) {
-				int wireEnum = wire.getWireEnum();
-				Set<WireConnection> wcToRemove = new HashSet<>();
-				for (WireConnection wc : tile.getWireConnections(wireEnum)) {
+				TileWireTemplate wireEnum = ((TileWire) wire).getTemplate();
+				Set<WireConnection<TileWireTemplate>> wcToRemove = new HashSet<>();
+				for (WireConnection<TileWireTemplate> wc : tile.getWireHashMap().get(wireEnum)) {
 					// never remove PIPs.  We only are searching for different names
 					// of the same wire.  A PIP connect unique wires.
 					if (wc.isPIP())
 						continue;
 					if (!sourceWires.contains(wireEnum) ||
-							!wireIsSink(wc.getTile(tile), wc.getWire())) {
+							!wireIsSink(wc.getTile(tile), wc.getSinkWire())) {
 						wcToRemove.add(wc);
 					}
 				}
@@ -641,16 +663,16 @@ public final class DeviceGenerator {
 		return wcsToRemove;
 	}
 
-	private Set<Integer> getSourceWiresOfTile(Tile tile) {
-		Set<Integer> sourceWires = new HashSet<>();
+	private Set<TileWireTemplate> getSourceWiresOfTile(Tile tile) {
+		Set<TileWireTemplate> sourceWires = new HashSet<>();
 		for (Wire wire : tile.getWires()) {
-			int wireEnum = wire.getWireEnum();
+			TileWireTemplate wireEnum = ((TileWire) wire).getTemplate();
 			if (siteWireSourceSet.contains(wireEnum)) {
 				sourceWires.add(wireEnum);
 			}
-			for (WireConnection wc : tile.getWireConnections(wireEnum)) {
+			for (WireConnection<TileWireTemplate> wc : tile.getWireHashMap().get(wireEnum)) {
 				if (wc.isPIP()) {
-					sourceWires.add(wc.getWire());
+					sourceWires.add(wc.getSinkWire());
 				}
 			}
 		}
@@ -660,13 +682,13 @@ public final class DeviceGenerator {
 	// A wire is a sink if it is a site source (really should check in the tile sinks but
 	// the wire type check is easier and should be sufficient or the wire is the source of
 	// a PIP.
-	private boolean wireIsSink(Tile tile, Integer wire) {
+	private boolean wireIsSink(Tile tile, TileWireTemplate wire) {
 		if (siteWireSinkSet.contains(wire)) {
 			return true;
 		}
-		if (tile.getWireHashMap() == null || tile.getWireConnections(wire) == null)
+		if (tile.getWireHashMap() == null || tile.getWireHashMap().get(wire) == null)
 			return false;
-		for (WireConnection wc : tile.getWireConnections(wire)) {
+		for (WireConnection wc : tile.getWireHashMap().get(wire)) {
 			if (wc.isPIP())
 				return true;
 		}
@@ -674,35 +696,33 @@ public final class DeviceGenerator {
 	}
 
 	/**
-	 * Add the missing wire connection and remove the unnecssary wires in a single
+	 * Add the missing wire connection and remove the unnecessary wires in a single
 	 * pass.  It's easier to just recreate the wire hash maps with the corrections.
 	 */
 	private void makeWireCorrections(
-			Map<Tile, Map<Integer, Set<WireConnection>>> wcsToAdd,
-			Map<Tile, Map<Integer, Set<WireConnection>>> wcsToRemove) {
-
-		HashPool<WireHashMap> tileWiresPool = new HashPool<>();
-		HashPool<WireArray> wireArrayPool = new HashPool<>();
+			Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> wcsToAdd,
+			Map<Tile, Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>>> wcsToRemove
+	) {
+		HashPool<WireHashMap<TileWireTemplate>> tileWiresPool = new HashPool<>();
+		HashPool<ArraySet<WireConnection<TileWireTemplate>>> wireArrayPool = new HashPool<>();
 
 		for (Tile tile : device.getTileMap().values()) {
 			if (tile.getWireHashMap() == null)
 				continue;
 
 			// create a safe wire map to modify
-			WireHashMap wireHashMap = new WireHashMap();
+			WireHashMap<TileWireTemplate> wireHashMap = new WireHashMap<>();
 
 			for (Wire wire : tile.getWires()) {
-				int wireEnum = wire.getWireEnum();
-				Set<WireConnection> wcs =
-						new HashSet<>(Arrays.asList(tile.getWireConnections(wireEnum)));
+				TileWireTemplate wireEnum = ((TileWire) wire).getTemplate();
+				Set<WireConnection<TileWireTemplate>> wcs = new HashSet<>(tile.getWireHashMap().get(wireEnum));
 				if (wcsToRemove.containsKey(tile) && wcsToRemove.get(tile).containsKey(wireEnum))
 					wcs.removeAll(wcsToRemove.get(tile).get(wireEnum));
 				if (wcsToAdd.containsKey(tile) && wcsToAdd.get(tile).containsKey(wireEnum))
 					wcs.addAll(wcsToAdd.get(tile).get(wireEnum));
 
 				if (wcs.size() > 0) {
-					WireConnection[] arrView = wcs.toArray(new WireConnection[wcs.size()]);
-					wireHashMap.put(wireEnum, wireArrayPool.add(new WireArray(arrView)).array);
+					wireHashMap.put(wireEnum, wireArrayPool.add(new ArraySet<>(wcs)));
 				}
 			}
 
@@ -714,16 +734,22 @@ public final class DeviceGenerator {
 	/**
 	 * Remove duplicate wire resources in the tile.
 	 */
-	private void removeDuplicateTileResources(Tile tile) {
-		WireHashMap origTileWires = tile.getWireHashMap();
-		for (Wire wire : tile.getWires()) {
-			int wireEnum = wire.getWireEnum();
-			WireArray unique = wireArrayPool.add(new WireArray(origTileWires.get(wireEnum)));
-			tile.getWireHashMap().put(wireEnum, unique.array);
-		}
+	private WireHashMap<TileWireTemplate> removeDuplicateTileResources(WireHashMap<TileWireTemplate> orig) {
+		WireHashMap<TileWireTemplate> retrieved = tileWireMapPool.add(orig);
+		// if it's different, then another identical copy exist.  This copy should have already
+		// been reduced.  Otherwise, reduce the sets of connections on the map.
+		if (retrieved == orig) {
+			for (TileWireTemplate key : retrieved.keySet()) {
+				ArraySet<WireConnection<TileWireTemplate>> conns = retrieved.get(key);
+				ArraySet<WireConnection<TileWireTemplate>> unique = tileConnSetPool.add(conns);
 
-		WireHashMap retrievedTileWires = tileWiresPool.add(origTileWires);
-		tile.setWireHashMap(retrievedTileWires);
+				// Again, if they're the same, it means this is unique,  reduce the size by trimming it
+				if (conns == unique)
+					conns.trimToSize();
+				retrieved.put(key, unique);
+			}
+		}
+		return retrieved;
 	}
 
 	private static String getIntrasiteWireName(
@@ -754,7 +780,6 @@ public final class DeviceGenerator {
 	 * Creates a map from pad bel name -> corresponding package pin. This
 	 * information is needed when generating Tincr Checkpoints from
 	 * RS to be loaded into Vivado.
-	 * @param deviceInfo
 	 */
 	private static void createPackagePins(Device device, Document deviceInfo) {
 		Element pinMapRootEl = deviceInfo.getRootElement().getChild("package_pins");
@@ -778,8 +803,8 @@ public final class DeviceGenerator {
 	
 	private final class FamilyTypeListener extends XDLRCParserListener {
 		@Override
-		protected void enterXdlResourceReport(List<String> tokens) {
-			FamilyType family = FamilyType.valueOf(tokens.get(3).toUpperCase());
+		protected void enterXdlResourceReport(pl_XdlResourceReport tokens) {
+			FamilyType family = FamilyType.valueOf(tokens.family.toUpperCase());
 			try {
 				familyInfo = RSEnvironment.defaultEnv().loadFamilyInfo(family);
 			} catch (IOException|JDOMException e) {
@@ -789,10 +814,11 @@ public final class DeviceGenerator {
 		}
 	}
 
-	private final class WireEnumeratorListener extends XDLRCParserListener {
+	private final class WireTemplateListener extends XDLRCParserListener {
 		private static final int PIN_SET_CAPACITY = 10000;
 
-		private final Set<String> wireSet = new TreeSet<>();
+		private final SortedSet<String> tileWireSet = new TreeSet<>();
+		private final SortedMap<String, SiteType> siteWireMap = new TreeMap<>();
 		private final Set<String> inpinSet = new HashSet<>(PIN_SET_CAPACITY);
 		private final Set<String> outpinSet = new HashSet<>(PIN_SET_CAPACITY);
 
@@ -803,10 +829,10 @@ public final class DeviceGenerator {
 		 * Tracks special site pin wires.
 		 */
 		@Override
-		protected void enterPinWire(List<String> tokens) {
-			String externalName = stripTrailingParenthesis(tokens.get(3));
+		protected void enterPinWire(pl_PinWire tokens) {
+			String externalName = tokens.external_wire;
 			
-			if (tokens.get(2).equals("input")) {
+			if (tokens.direction.equals("input")) {
 				inpinSet.add(externalName);
 			} else {
 				outpinSet.add(externalName);
@@ -814,107 +840,104 @@ public final class DeviceGenerator {
 		}
 
 		@Override
-		protected void enterWire(List<String> tokens) {
-			String wireName = stripTrailingParenthesis(tokens.get(1));
-			wireSet.add(wireName);
+		protected void enterWire(pl_Wire tokens) {
+			String wireName = tokens.name;
+			tileWireSet.add(wireName);
 		}
 
 		@Override
-		protected void enterPip(List<String> tokens) {
-			pipSources.add(tokens.get(2));
+		protected void enterPip(pl_Pip tokens) {
+			pipSources.add(tokens.start_wire);
 
-			String wireName = stripTrailingParenthesis(tokens.get(4));
+			String wireName = tokens.end_wire;
 			pipSinks.add(wireName);
 		}
 
 		@Override
-		protected void enterPrimitiveDef(List<String> tokens) {
-			currType = SiteType.valueOf(device.getFamily(), tokens.get(1));
+		protected void enterPrimitiveDef(pl_PrimitiveDef tokens) {
+			currType = SiteType.valueOf(device.getFamily(), tokens.name);
 		}
 
 		@Override
-		protected void enterElement(List<String> tokens) {
-			currElement = tokens.get(1);
+		protected void enterElement(pl_Element tokens) {
+			currElement = tokens.name;
 		}
 
 		@Override
-		protected void enterElementPin(List<String> tokens) {
-			String wireName = getIntrasiteWireName(currType, currElement, tokens.get(1));
-			wireSet.add(wireName);
+		protected void enterElementPin(pl_ElementPin tokens) {
+			String wireName = getIntrasiteWireName(currType, currElement, tokens.name);
+			siteWireMap.put(wireName, currType);
 		}
 
 		@Override
-		protected void exitXdlResourceReport(List<String> tokens) {
-			Map<String, Integer> wireMap = new HashMap<>((int) (wireSet.size() / 0.75 + 1));
-			String[] wires = new String[wireSet.size()];
-			
-			Set<Integer> sourceWireSetLocal = new HashSet<Integer> (outpinSet.size());
-			Set<Integer> sinkWireSetLocal = new HashSet<Integer> (inpinSet.size());
-						
+		protected void exitXdlResourceReport(pl_XdlResourceReport tokens) {
+			Set<TileWireTemplate> sourceWireSetLocal = new HashSet<>(outpinSet.size());
+			Set<TileWireTemplate> sinkWireSetLocal = new HashSet<>(inpinSet.size());
+
 			int i = 0;
-			for (String wire : wireSet) {
-				wires[i] = wire;
-				wireMap.put(wire, i);
+			for (String wire : tileWireSet) {
+				TileWireTemplate template = new TileWireTemplate(wire, i++);
+				tileWireTemplates.put(wire, template);
 
 				if (inpinSet.contains(wire)) {
-					sinkWireSetLocal.add(i);
+					sinkWireSetLocal.add(template);
 				} 
 				if (outpinSet.contains(wire)) {
-					sourceWireSetLocal.add(i);
+					sourceWireSetLocal.add(template);
 				} 
-
-				i++;
 			}
 
-			we.setWireMap(wireMap);
-			we.setWires(wires);
-			
+			for (Map.Entry<String, SiteType> e : siteWireMap.entrySet()) {
+				SiteWireTemplate template = new SiteWireTemplate(e.getKey(), e.getValue(), i++);
+				siteWireTemplates.put(e.getKey(), template);
+			}
+
 			// create the global source and sinks wire set
 			siteWireSourceSet = sourceWireSetLocal;
 			siteWireSinkSet = sinkWireSetLocal;
+			numUniqueWireTypes = i;
 		}
 	}
 
 	private final class TileAndSiteGeneratorListener extends XDLRCParserListener {
 		private ArrayList<Site> tileSites;
-
 		private Tile currTile;
 
 		@Override
-		protected void enterXdlResourceReport(List<String> tokens) {
-			device.setPartName(PartNameTools.removeSpeedGrade(tokens.get(2)));
+		protected void enterXdlResourceReport(pl_XdlResourceReport tokens) {
+			device.setPartName(PartNameTools.removeSpeedGrade(tokens.part));
 		}
 
 		@Override
-		protected void enterTiles(List<String> tokens) {
-			int rows = Integer.parseInt(tokens.get(1));
-			int columns = Integer.parseInt(tokens.get(2));
+		protected void enterTiles(pl_Tiles tokens) {
+			int rows = tokens.rows;
+			int columns = tokens.columns;
 
 			device.createTileArray(rows, columns);
 		}
 
 		@Override
-		protected void enterTile(List<String> tokens) {
-			int row = Integer.parseInt(tokens.get(1));
-			int col = Integer.parseInt(tokens.get(2));
+		protected void enterTile(pl_Tile tokens) {
+			int row = tokens.row;
+			int col = tokens.column;
 			currTile = device.getTile(row, col);
-			currTile.setName(tokens.get(3));
-			currTile.setType(TileType.valueOf(device.getFamily(), tokens.get(4)));
+			currTile.setName(tokens.name);
+			currTile.setType(TileType.valueOf(device.getFamily(), tokens.type));
 
 			tileSites = new ArrayList<>();
 		}
 
 		@Override
-		protected void enterPrimitiveSite(List<String> tokens) {
+		protected void enterPrimitiveSite(pl_PrimitiveSite tokens) {
 			Site site = new Site();
 			site.setTile(currTile);
-			site.setName(tokens.get(1));
-			site.parseCoordinatesFromName(tokens.get(1));
+			site.setName(tokens.name);
+			site.parseCoordinatesFromName(tokens.name);
 			site.setIndex(tileSites.size());
-			site.setBondedType(BondedType.valueOf(tokens.get(3).toUpperCase()));
+			site.setBondedType(BondedType.valueOf(tokens.bonded.toUpperCase()));
 
-			List<SiteType> alternatives = new ArrayList<>();
-			SiteType type = SiteType.valueOf(device.getFamily(), tokens.get(2));
+			ArraySet<SiteType> alternatives = new ArraySet<>();
+			SiteType type = SiteType.valueOf(device.getFamily(), tokens.type);
 			alternatives.add(type);
 
 			Element ptEl = getSiteTypeEl(type);
@@ -926,15 +949,13 @@ public final class DeviceGenerator {
 						.collect(Collectors.toList()));
 			}
 
-			SiteType[] arr = alternatives.toArray(new SiteType[alternatives.size()]);
-			arr = alternativeTypesPool.add(new AlternativeTypes(arr)).types;
-			site.setPossibleTypes(arr);
+			site.setPossibleTypes(alternativeTypesPool.add(alternatives));
 
 			tileSites.add(site);
 		}
 
 		@Override
-		protected void exitTile(List<String> tokens) {
+		protected void exitTile(pl_Tile tokens) {
 			// Create an array of sites (more compact than ArrayList)
 			if (tileSites.size() > 0) {
 				currTile.setSites(tileSites.toArray(
@@ -950,138 +971,148 @@ public final class DeviceGenerator {
 
 	private final class WireConnectionGeneratorListener extends XDLRCParserListener {
 		private Tile currTile;
-		private int currTileWire;
+		private TileWireTemplate currTileWire;
 		private boolean currTileWireIsSource;
+		private WireHashMap<TileWireTemplate> wireHashMap;
+		private TileWireTemplate pipStartWire, pipEndWire;
 
 		@Override
-		protected void enterTile(List<String> tokens) {
-			int row = Integer.parseInt(tokens.get(1));
-			int col = Integer.parseInt(tokens.get(2));
+		protected void enterTile(pl_Tile tokens) {
+			int row = tokens.row;
+			int col = tokens.column;
 			currTile = device.getTile(row, col);
-			currTile.setWireHashMap(new WireHashMap());
+			wireHashMap = new WireHashMap<>();
 		}
 
 		@Override
-		protected void exitTile(List<String> tokens) {
-			removeDuplicateTileResources(currTile);
+		protected void exitTile(pl_Tile tokens) {
+			WireHashMap<TileWireTemplate> reduced = removeDuplicateTileResources(wireHashMap);
+			currTile.setWireHashMap(reduced);
+			currTile = null;
 		}
 
 		@Override
-		protected void enterWire(List<String> tokens) {
-			String wireName = tokens.get(1);
-			currTileWire = we.getWireEnum(wireName);
+		protected void enterWire(pl_Wire tokens) {
+			String wireName = tokens.name;
+			currTileWire = tileWireTemplates.get(wireName);
 			currTileWireIsSource = siteWireSourceSet.contains(currTileWire) || pipSinks.contains(wireName);
 		}
 
 		@Override
-		protected void exitWire(List<String> tokens) {
-			currTileWire = -1;
+		protected void exitWire(pl_Wire tokens) {
+			currTileWire = null;
 		}
 
 		@Override
-		protected void enterConn(List<String> tokens) {
-			String currWireName = tokens.get(2).substring(0, tokens.get(2).length() - 1);
-			int currWire = we.getWireEnum(currWireName);
+		protected void enterConn(pl_Conn tokens) {
+			String currWireName = tokens.name;
+			TileWireTemplate currWire = tileWireTemplates.get(currWireName);
 			boolean currWireIsSiteSink = siteWireSinkSet.contains(currWire);
 			boolean currWireIsPIPSource = pipSources.contains(currWireName);
 			boolean currWireIsSink = currWireIsSiteSink || currWireIsPIPSource;
 			if (currTileWireIsSource || currWireIsSink) {
-				Tile t = device.getTile(tokens.get(1));
-				WireConnection wc = new WireConnection(currWire,
+				Tile t = device.getTile(tokens.tile);
+				WireConnection<TileWireTemplate> wc = new WireConnection<>(currWire,
 						currTile.getRow() - t.getRow(),
 						currTile.getColumn() - t.getColumn(),
 						false);
-				currTile.addConnection(currTileWire, wirePool.add(wc));
+				wireHashMap.computeIfAbsent(currTileWire, k -> new ArraySet<>()).add(wc);
 			}
 		}
 
 		@Override
-		protected void enterPip(List<String> tokens) {
+		protected void enterPip(pl_Pip tokens) {
 			String endWireName;
-			WireConnection wc;
+			WireConnection<TileWireTemplate> wc;
 
-			Integer startWire = we.getWireEnum(tokens.get(2));
-			if (tokens.get(4).endsWith(")")) { // regular pip
-				endWireName = tokens.get(4).substring(0, tokens.get(4).length() - 1);
-				wc = wirePool.add(new WireConnection(we.getWireEnum(endWireName), 0, 0, true));
-			} else { // route-through PIP
-				endWireName = tokens.get(4);
-				Integer endWireEnum = we.getWireEnum(endWireName);
-				wc = wirePool.add(new WireConnection(endWireEnum, 0, 0, true));
-				String typeName = tokens.get(6).substring(0, tokens.get(6).length() - 2);
-				SiteType type = SiteType.valueOf(device.getFamily(), typeName);
+			TileWireTemplate startWire = tileWireTemplates.get(tokens.start_wire);
+			endWireName = tokens.end_wire;
+			TileWireTemplate endWire = tileWireTemplates.get(endWireName);
+			assert endWire != null;
+			wc = tileConnPool.add(new WireConnection<>(endWire, 0, 0, true));
+			wireHashMap.computeIfAbsent(startWire, k -> new ArraySet<>()).add(wc);
 
-				String[] parts = tokens.get(5).split("-");
-				String inPin = parts[1];
-				String outPin = parts[2];
+			pipStartWire = startWire;
+			pipEndWire = endWire;
+		}
 
-				PIPRouteThrough currRouteThrough = new PIPRouteThrough(type, inPin, outPin);
-				currRouteThrough = routeThroughPool.add(currRouteThrough);
-				device.addRouteThrough(startWire, endWireEnum, currRouteThrough);
-			}
-			currTile.addConnection(startWire, wc);
+		@Override
+		protected void exitPip(pl_Pip tokens) {
+			pipStartWire = null;
+			pipEndWire = null;
+		}
+
+		@Override
+		protected void enterRoutethrough(pl_Routethrough tokens) {
+			SiteType type = SiteType.valueOf(device.getFamily(), tokens.site_type);
+
+			String[] parts = tokens.pins.split("-");
+			String inPin = parts[1];
+			String outPin = parts[2];
+
+			PIPRouteThrough currRouteThrough = new PIPRouteThrough(type, inPin, outPin);
+			currRouteThrough = routeThroughPool.add(currRouteThrough);
+			device.addRouteThrough(pipStartWire, pipEndWire, currRouteThrough);
 		}
 	}
 
 	private final class SourceAndSinkListener extends XDLRCParserListener {
 		private Site currSite;
-		private Set<Integer> tileSources;
-		private Set<Integer> tileSinks;
-		private Map<String, Integer> externalPinWires;
+		private Set<TileWireTemplate> tileSources;
+		private Set<TileWireTemplate> tileSinks;
+		private Map<String, TileWireTemplate> externalPinWires;
 
 		@Override
-		protected void enterTile(List<String> tokens) {
-			int row = Integer.parseInt(tokens.get(1));
-			int col = Integer.parseInt(tokens.get(2));
-
+		protected void enterTile(pl_Tile tokens) {
 			tileSources = new TreeSet<>();
 			tileSinks = new TreeSet<>();
 		}
 
 		@Override
-		protected void exitTile(List<String> tokens) {
+		protected void exitTile(pl_Tile tokens) {
 			tileSources = null;
 			tileSinks = null;
 		}
 
 		@Override
-		protected void enterPrimitiveSite(List<String> tokens) {
-			currSite = device.getSite(tokens.get(1));
+		protected void enterPrimitiveSite(pl_PrimitiveSite tokens) {
+			currSite = device.getSite(tokens.name);
 			externalPinWires = new HashMap<>();
 		}
 
 		@Override
-		protected void enterPinWire(List<String> tokens) {
-			String name = tokens.get(1);
+		protected void enterPinWire(pl_PinWire tokens) {
+			String name = tokens.name;
 			PinDirection direction =
-					tokens.get(2).equals("input") ? PinDirection.IN : PinDirection.OUT;
-			String externalWireName = stripTrailingParenthesis(tokens.get(3));
-			externalPinWires.put(name, we.getWireEnum(externalWireName));
+					tokens.direction.equals("input") ? PinDirection.IN : PinDirection.OUT;
+			String externalWireName = tokens.external_wire;
+			TileWireTemplate externalWire = tileWireTemplates.get(externalWireName);
+			externalPinWires.put(name, externalWire);
 
 			if (direction == PinDirection.IN) {
-				tileSinks.add(we.getWireEnum(externalWireName));
+				tileSinks.add(externalWire);
 			} else {
-				tileSources.add(we.getWireEnum(externalWireName));
+				tileSources.add(externalWire);
 			}
 		}
 
 		@Override
-		protected void exitPrimitiveSite(List<String> tokens) {
-			Map<SiteType, Map<String, Integer>> externalPinWiresMap =
+		protected void exitPrimitiveSite(pl_PrimitiveSite tokens) {
+			Map<SiteType, Map<String, TileWireTemplate>> externalPinWiresMap =
 					new HashMap<>();
-			externalPinWiresMap.put(currSite.getPossibleTypes()[0], externalWiresPool.add(externalPinWires));
+			externalPinWiresMap.put(currSite.getPossibleTypes().get(0), externalWiresPool.add(externalPinWires));
 
-			SiteType[] alternativeTypes = currSite.getPossibleTypes();
-			for (int i = 1; i < alternativeTypes.length; i++) {
-				Map<String, Integer> altExternalPinWires = new HashMap<>();
-				SiteType altType = alternativeTypes[i];
+			ArraySet<SiteType> alternativeTypes = currSite.getPossibleTypes();
+			for (int i = 1; i < alternativeTypes.size(); i++) {
+				Map<String, TileWireTemplate> altExternalPinWires = new HashMap<>();
+				SiteType altType = alternativeTypes.get(i);
 				SiteTemplate site = device.getSiteTemplate(altType);
 				for (String sitePin : site.getSources().keySet()) {
-					Integer wire = getExternalWireForSitePin(altType, sitePin);
+					TileWireTemplate wire = getExternalWireForSitePin(altType, sitePin);
 					altExternalPinWires.put(sitePin, wire);
 				}
 				for (String sitePin : site.getSinks().keySet()) {
-					Integer wire = getExternalWireForSitePin(altType, sitePin);
+					TileWireTemplate wire = getExternalWireForSitePin(altType, sitePin);
 					if (wire == null)
 						System.out.println("There be an error here");
 					altExternalPinWires.put(sitePin, wire);
@@ -1098,7 +1129,7 @@ public final class DeviceGenerator {
 			currSite = null;
 		}
 
-		private Integer getExternalWireForSitePin(SiteType altType, String sitePin) {
+		private TileWireTemplate getExternalWireForSitePin(SiteType altType, String sitePin) {
 			Element pinEl = getPinmapElement(altType, sitePin);
 
 			String connectedPin = sitePin;
@@ -1110,7 +1141,7 @@ public final class DeviceGenerator {
 		}
 
 		private Element getPinmapElement(SiteType altType, String sitePin) {
-			Element ptEl = getSiteTypeEl(currSite.getPossibleTypes()[0]);
+			Element ptEl = getSiteTypeEl(currSite.getPossibleTypes().get(0));
 			Element alternativesEl = ptEl.getChild("alternatives");
 			Element altEl = null;
 			for (Element altTmpEl : alternativesEl.getChildren("alternative")) {
@@ -1135,6 +1166,38 @@ public final class DeviceGenerator {
 		}
 	}
 
+	private final class TileWireListener extends XDLRCParserListener {
+		private Tile currTile;
+		private HashMap<Set<TileWireTemplate>, Map<String, TileWireTemplate>> tileWiresPool;
+		private HashSet<TileWireTemplate> tileWires;
+
+		@Override
+		protected void enterTiles(pl_Tiles tokens) {
+			tileWiresPool = new HashMap<>(4096);
+		}
+
+		@Override
+		protected void enterTile(pl_Tile tokens) {
+			int row = tokens.row;
+			int col = tokens.column;
+			currTile = device.getTile(row, col);
+			tileWires = new HashSet<>();
+		}
+
+		@Override
+		protected void exitTile(pl_Tile tokens) {
+			currTile.setTileWires(tileWiresPool.computeIfAbsent(tileWires, k ->  {
+				if (k.isEmpty())
+					return Collections.emptyMap();
+				else
+					return k.stream().collect(Collectors.toMap(t -> t.getName(), t -> t));
+				}));
+
+			currTile = null;
+			tileWires = null;
+		}
+	}
+
 	private class PrimitiveDefsListener extends XDLRCParserListener {
 		private final PrimitiveDefList defs;
 		private PrimitiveDef currDef;
@@ -1148,43 +1211,43 @@ public final class DeviceGenerator {
 		}
 
 		@Override
-		protected void enterPrimitiveDef(List<String> tokens) {
+		protected void enterPrimitiveDef(pl_PrimitiveDef tokens) {
 			currDef = new PrimitiveDef();
-			String name = tokens.get(1).toUpperCase();
+			String name = tokens.name.toUpperCase();
 			currDef.setType(SiteType.valueOf(device.getFamily(), name));
 
-			pins = new ArrayList<>(Integer.parseInt(tokens.get(2)));
-			elements = new ArrayList<>(Integer.parseInt(tokens.get(3)));
+			pins = new ArrayList<>(tokens.pin_count);
+			elements = new ArrayList<>(tokens.element_count);
 
 			currDef.setPins(pins);
 			currDef.setElements(elements);
 		}
 
 		@Override
-		protected void exitPrimitiveDef(List<String> tokens) {
+		protected void exitPrimitiveDef(pl_PrimitiveDef tokens) {
 			currDef.setPins(pins);
 			currDef.setElements(elements);
 			defs.add(currDef);
 		}
 
 		@Override
-		protected void enterPin(List<String> tokens) {
+		protected void enterPin(pl_Pin tokens) {
 			PrimitiveDefPin p = new PrimitiveDefPin();
-			p.setExternalName(tokens.get(1));
-			p.setInternalName(tokens.get(2));
-			p.setDirection(tokens.get(3).startsWith("output") ? PinDirection.OUT : PinDirection.IN);
+			p.setExternalName(tokens.external_name);
+			p.setInternalName(tokens.internal_name);
+			p.setDirection(tokens.direction.startsWith("output") ? PinDirection.OUT : PinDirection.IN);
 			pins.add(p);
 		}
 
 		@Override
-		protected void enterElement(List<String> tokens) {
+		protected void enterElement(pl_Element tokens) {
 			currElement = new PrimitiveElement();
-			currElement.setName(tokens.get(1));
-			currElement.setBel(tokens.size() >= 5 && tokens.get(3).equals("#") && tokens.get(4).equals("BEL"));
+			currElement.setName(tokens.name);
+			currElement.setBel(tokens.isBel);
 		}
 
 		@Override
-		protected void exitElement(List<String> tokens) {
+		protected void exitElement(pl_Element tokens) {
 			// Determine the element type
 			if (!currElement.isBel()) {
 				if (currElement.getCfgOptions() != null && !currElement.getPins().isEmpty())
@@ -1200,29 +1263,29 @@ public final class DeviceGenerator {
 		}
 
 		@Override
-		protected void enterElementPin(List<String> tokens) {
+		protected void enterElementPin(pl_ElementPin tokens) {
 			PrimitiveDefPin elementPin = new PrimitiveDefPin();
-			elementPin.setExternalName(tokens.get(1));
-			elementPin.setInternalName(tokens.get(1));
-			elementPin.setDirection(tokens.get(2).startsWith("output") ? PinDirection.OUT : PinDirection.IN);
+			elementPin.setExternalName(tokens.name);
+			elementPin.setInternalName(tokens.name);
+			elementPin.setDirection(tokens.direction.startsWith("output") ? PinDirection.OUT : PinDirection.IN);
 			currElement.addPin(elementPin);
 		}
 
 		@Override
-		protected void enterElementCfg(List<String> tokens) {
-			for(int k = 1; k < tokens.size(); k++){
-				currElement.addCfgOption(tokens.get(k).replace(")", ""));
+		protected void enterElementCfg(pl_ElementCfg tokens) {
+			for(String cfg : tokens.cfgs){
+				currElement.addCfgOption(cfg);
 			}
 		}
 
 		@Override
-		protected void enterElementConn(List<String> tokens) {
+		protected void enterElementConn(pl_ElementConn tokens) {
 			PrimitiveConnection c = new PrimitiveConnection();
-			c.setElement0(tokens.get(1));
-			c.setPin0(tokens.get(2));
-			c.setForwardConnection(tokens.get(3).equals("==>"));
-			c.setElement1(tokens.get(4));
-			c.setPin1(tokens.get(5).substring(0, tokens.get(5).length() - 1));
+			c.setElement0(tokens.element0);
+			c.setPin0(tokens.pin0);
+			c.setForwardConnection(tokens.direction.equals("==>"));
+			c.setElement1(tokens.element1);
+			c.setPin1(tokens.pin1);
 			currElement.addConnection(c);
 		}
 	}

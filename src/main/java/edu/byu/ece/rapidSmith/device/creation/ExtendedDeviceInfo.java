@@ -24,13 +24,16 @@ import com.caucho.hessian.io.Hessian2Input;
 import com.caucho.hessian.io.Hessian2Output;
 import edu.byu.ece.rapidSmith.RSEnvironment;
 import edu.byu.ece.rapidSmith.device.*;
+import edu.byu.ece.rapidSmith.util.ArraySet;
 import edu.byu.ece.rapidSmith.util.FileTools;
 import edu.byu.ece.rapidSmith.util.HashPool;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -42,12 +45,15 @@ public class ExtendedDeviceInfo implements Serializable {
 	private static final long serialVersionUID = -459840872618980717L;
 	private transient ExecutorService threadPool;
 
-	private transient final HashPool<WireConnection> connPool = new HashPool<>();
-	private transient final HashPool<WireArray> connArrayPool = new HashPool<>();
-	private transient final HashPool<WireHashMap> whmPool = new HashPool<>();
+	private transient final HashPool<WireConnection<TileWireTemplate>> tileConnPool = new HashPool<>();
+	private transient final HashPool<ArraySet<WireConnection<TileWireTemplate>>> tileConnSetPool = new HashPool<>();
+	private transient final HashPool<WireHashMap<TileWireTemplate>> tileConnMapPool = new HashPool<>();
 
-	private Map<String, WireHashMap> reversedWireHashMap = new HashMap<>(); // tile names to wirehashmap
-	private Map<SiteType, WireHashMap> reversedSubsiteRouting = new HashMap<>();
+	private transient final HashPool<WireConnection<SiteWireTemplate>> siteConnPool = new HashPool<>();
+	private transient final HashPool<ArraySet<WireConnection<SiteWireTemplate>>> siteConnSetPool = new HashPool<>();
+
+	private Map<String, WireHashMap<TileWireTemplate>> reversedWireHashMap = new HashMap<>(); // tile names to wirehashmap
+	private Map<SiteType, WireHashMap<SiteWireTemplate>> reversedSubsiteRouting = new HashMap<>();
 
 	public void buildExtendedInfo(Device device) {
 		System.out.println("started at " + new Date());
@@ -109,70 +115,60 @@ public class ExtendedDeviceInfo implements Serializable {
 	}
 
 	private void getReverseMapForTile(Device device, Tile tile) {
-		Map<Integer, List<WireConnection>> reverseMap = new HashMap<>();
+		Map<TileWireTemplate, ArraySet<WireConnection<TileWireTemplate>>> reverseMap = new HashMap<>();
 		for (Tile srcTile : device.getTiles()) {
 			for (Wire srcWire : srcTile.getWires()) {
-				int srcEnum = srcWire.getWireEnum();
-				for (WireConnection c : srcTile.getWireConnections(srcEnum)) {
+				TileWireTemplate srcEnum = ((TileWire) srcWire).getTemplate();
+				for (WireConnection<TileWireTemplate> c : srcTile.getWireHashMap().get(srcEnum)) {
 					if (c.getTile(srcTile) == tile) {
-						WireConnection reverse = new WireConnection(
+						WireConnection<TileWireTemplate> reverse = new WireConnection<>(
 								srcEnum, -c.getRowOffset(),
 								-c.getColumnOffset(), c.isPIP());
-						WireConnection pooled = connPool.add(reverse);
-						reverseMap.computeIfAbsent(c.getWire(), k -> new ArrayList<>())
+						WireConnection<TileWireTemplate> pooled = tileConnPool.add(reverse);
+						reverseMap.computeIfAbsent(c.getSinkWire(), k -> new ArraySet<>())
 								.add(pooled);
 					}
 				}
 			}
 		}
 
-		WireHashMap wireHashMap = new WireHashMap();
-		for (Map.Entry<Integer, List<WireConnection>> e : reverseMap.entrySet()) {
-			List<WireConnection> v = e.getValue();
-			WireArray wireArray = new WireArray(v.toArray(new WireConnection[v.size()]));
-			wireHashMap.put(e.getKey(), connArrayPool.add(wireArray).array);
+		WireHashMap<TileWireTemplate> wireHashMap = new WireHashMap<>();
+		for (Map.Entry<TileWireTemplate, ArraySet<WireConnection<TileWireTemplate>>> e : reverseMap.entrySet()) {
+			ArraySet<WireConnection<TileWireTemplate>> v = e.getValue();
+			wireHashMap.put(e.getKey(), tileConnSetPool.add(v));
 		}
 
-		tile.setReverseWireConnections(whmPool.add(wireHashMap));
+		tile.setReverseWireConnections(tileConnMapPool.add(wireHashMap));
 	}
 
 	private void reverseSubsiteWires(Device device) {
 		for (SiteTemplate site : device.getSiteTemplates().values()) {
-			WireHashMap reversed = getReverseMapForSite(site);
+			WireHashMap<SiteWireTemplate> reversed = getReverseMapForSite(site);
 			site.setReverseWireConnections(reversed);
 		}
 	}
 
-	private WireHashMap getReverseMapForSite(SiteTemplate site) {
-		Map<Integer, List<WireConnection>> reverseMap = new HashMap<>();
-		for (int srcWire : site.getWires()) {
-			for (WireConnection c : site.getWireConnections(srcWire)) {
-				WireConnection reverse = new WireConnection(
+	private WireHashMap<SiteWireTemplate> getReverseMapForSite(SiteTemplate site) {
+		Map<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> reverseMap = new HashMap<>();
+		for (SiteWireTemplate srcWire : site.getSiteWires().values()) {
+			for (WireConnection<SiteWireTemplate> c : site.getWireConnections(srcWire)) {
+				WireConnection<SiteWireTemplate> reverse = new WireConnection<>(
 						srcWire, -c.getRowOffset(),
 						-c.getColumnOffset(), c.isPIP());
-				WireConnection pooled = connPool.add(reverse);
-				reverseMap.computeIfAbsent(c.getWire(), k -> new ArrayList<>())
-						.add(pooled);
+				WireConnection<SiteWireTemplate> pooled = siteConnPool.add(reverse);
+				reverseMap.computeIfAbsent(c.getSinkWire(), k -> new ArraySet<>()).add(pooled);
 			}
 		}
 
-		WireHashMap wireHashMap = new WireHashMap();
-		for (Map.Entry<Integer, List<WireConnection>> e : reverseMap.entrySet()) {
-			List<WireConnection> v = e.getValue();
-			WireArray wireArray = new WireArray(v.toArray(new WireConnection[v.size()]));
-			wireHashMap.put(e.getKey(), connArrayPool.add(wireArray).array);
+		// TODO do I really need to reduce this?
+		WireHashMap<SiteWireTemplate> wireHashMap = new WireHashMap<>();
+		for (Map.Entry<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> e : reverseMap.entrySet()) {
+			ArraySet<WireConnection<SiteWireTemplate>> v = e.getValue();
+			wireHashMap.put(e.getKey(), siteConnSetPool.add(v));
 		}
 
 		return wireHashMap;
 	}
-
-	/**
-	 * @deprecated See @link{{@link Device#loadExtendedInfo()}}
-	 * @param device the device to load info for
-	 */
-	public static void loadExtendedInfo(Device device) {
-		device.loadExtendedInfo();
-		}
 
 	public static Path getExtendedInfoPath(Device device) {
 		RSEnvironment env = RSEnvironment.defaultEnv();
@@ -197,11 +193,11 @@ public class ExtendedDeviceInfo implements Serializable {
 		return info;
 	}
 
-	public Map<String, WireHashMap> getReversedWireMap() {
+	public Map<String, WireHashMap<TileWireTemplate>> getReversedWireMap() {
 		return reversedWireHashMap;
 	}
 
-	public Map<SiteType, WireHashMap> getReversedSubsiteRouting() {
+	public Map<SiteType, WireHashMap<SiteWireTemplate>> getReversedSubsiteRouting() {
 		return reversedSubsiteRouting;
 	}
 }

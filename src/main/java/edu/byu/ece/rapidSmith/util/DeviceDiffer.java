@@ -37,8 +37,6 @@ import java.util.stream.Collectors;
 public class DeviceDiffer {
 	private Device deviceGold;
 	private Device deviceTest;
-	private WireEnumerator weGold;
-	private WireEnumerator weTest;
 	private boolean verbose;
 
 	private HashSet<Pair> diffedWireHashMaps;
@@ -72,12 +70,10 @@ public class DeviceDiffer {
 
 	public void setGold(Device device) {
 		this.deviceGold = device;
-		this.weGold = device.getWireEnumerator();
 	}
 
 	public void setTest(Device device) {
 		this.deviceTest = device;
-		this.weTest = device.getWireEnumerator();
 	}
 
 	public DifferenceList diff() {
@@ -103,20 +99,20 @@ public class DeviceDiffer {
 //		Map<String, PIPRouteThrough> unseenRouteThroughs =
 //				new HashMap<>(deviceTest.getRouteThroughMap().size());
 //		for (WireConnection wc : deviceTest.getRouteThroughMap().keySet()) {
-//			unseenRouteThroughs.put(weTest.getName(wc.getWire()),
+//			unseenRouteThroughs.put(weTest.getName(wc.getSinkWire()),
 //					deviceTest.getRouteThrough(wc));
 //		}
 //		for (WireConnection goldWc : deviceGold.getRouteThroughMap().keySet()) {
 //			PIPRouteThrough testRT = unseenRouteThroughs.remove(
-//					weGold.getName(goldWc.getWire()));
+//					weGold.getName(goldWc.getSinkWire()));
 //			if (testRT == null) {
-//				differences.add("routethrough", weGold.getName(goldWc.getWire()),
+//				differences.add("routethrough", weGold.getName(goldWc.getSinkWire()),
 //						"none");
 //				continue;
 //			}
 //
 //			if (deviceGold.getRouteThrough(goldWc).getType() != testRT.getType()) {
-//				differences.down("routethrough", weGold.getName(goldWc.getWire()));
+//				differences.down("routethrough", weGold.getName(goldWc.getSinkWire()));
 //				differences.add("type", "" + deviceGold.getRouteThrough(goldWc).getType(),
 //						"" + testRT.getType());
 //				differences.up();
@@ -289,42 +285,37 @@ public class DeviceDiffer {
 		differences.up();
 	}
 
-	private void diffWireHashMaps(WireHashMap gold, WireHashMap test) {
+	private void diffWireHashMaps(WireHashMap<TileWireTemplate> gold, WireHashMap<TileWireTemplate> test) {
 		if (diffedWireHashMaps.contains(new Pair(gold, test)))
 			return;
-		Set<String> unseenSources = new HashSet<>();
+		Set<TileWireTemplate> unseenSources = new HashSet<>();
 		if (test != null) {
-			unseenSources.addAll(test.keySet().stream()
-					.map(weTest::getWireName)
-					.collect(Collectors.toList()));
+			unseenSources.addAll(new ArrayList<>(test.keySet()));
 		}
 		if (gold != null) {
-			for (int sourceNumber : gold.keySet()) {
-				String source = weGold.getWireName(sourceNumber);
-				if (!unseenSources.remove(source)) {
+			for (TileWireTemplate src : gold.keySet()) {
+				String source = src.getName();
+				if (!unseenSources.remove(src)) {
 					differences.down("sourcewire", source);
-					for (WireConnection wc : gold.get(sourceNumber)) {
-						if (filterWireConnectionFixes1(wc)) continue;
-						differences.add("sink", weGold.getWireName(wc.getWire()), "none");
+					for (WireConnection wc : gold.get(src)) {
+						differences.add("sink", wc.getSinkWire().getName(), "none");
 					}
 					differences.up();
 				} else {
 					assert test != null;
 					differences.down("sourcewire", source);
-					diffWireConnections(gold.get(sourceNumber),
-							test.get(weTest.getWireEnum(source)));
+					diffWireConnections(gold.get(src), test.get(src));
 					differences.up();
 				}
 			}
 		}
-		for (String source : unseenSources) {
+		for (TileWireTemplate source : unseenSources) {
 			assert test != null;
 
-			int testSourceNumber = weTest.getWireEnum(source);
-			differences.down("sourcewire", source);
-			for (WireConnection wc : test.get(testSourceNumber)) {
-				if (filterWireConnectionFixes2(wc)) continue;
-				differences.add("sink", "none", source);
+			differences.down("sourcewire", source.getName());
+
+			for (WireConnection<TileWireTemplate> wc : test.get(source)) {
+				differences.add("sink", "none", wc.getSinkWire().getName());
 			}
 			differences.up();
 		}
@@ -332,68 +323,49 @@ public class DeviceDiffer {
 		diffedWireHashMaps.add(new Pair(gold, test));
 	}
 
-	private boolean filterWireConnectionFixes1(WireConnection wc) {
-		// Masks a bug in v0.4 where some wires were being improperly declared as
-		// site sources and sinks causing upstream counnections to be maintained
-		WireType goldWireType = weGold.getWireType(wc.getWire());
-		WireType testWireType = weTest.getWireType(weTest.getWireEnum(weGold.getWireName(wc.getWire())));
-		return (goldWireType == WireType.SITE_SOURCE || goldWireType == WireType.SITE_SINK) &&
-				!(testWireType == WireType.SITE_SOURCE || testWireType == WireType.SITE_SINK);
-	}
-
-	private boolean filterWireConnectionFixes2(WireConnection wc) {
-		// Masks a bug in v0.4 where some wires were inadvertently being declared
-		// site sources and sinks and not LONG like they should have been
-		String sinkName = weTest.getWireName(wc.getWire());
-		WireType goldWireType = weGold.getWireType(weGold.getWireEnum(sinkName));
-		return (goldWireType == WireType.SITE_SOURCE || goldWireType == WireType.SITE_SINK) &&
-				weTest.getWireType(weTest.getWireEnum(sinkName)) == WireType.LONG;
-	}
-
-	private void diffWireConnections(WireConnection[] gold, WireConnection[] test) {
-		Map<String, Set<WireConnection>> unseenConnections = new HashMap<>();
+	private void diffWireConnections(
+		ArraySet<WireConnection<TileWireTemplate>> gold,
+		ArraySet<WireConnection<TileWireTemplate>> test
+	) {
+		Map<TileWireTemplate, Set<WireConnection<TileWireTemplate>>> unseenConnections = new HashMap<>();
 
 		if (test != null) {
-			for (WireConnection wc : test) {
-				String testWire = weTest.getWireName(wc.getWire());
-				if (!unseenConnections.containsKey(testWire)) {
-					unseenConnections.put(testWire, new HashSet<>());
-				}
-				unseenConnections.get(testWire).add(wc);
+			for (WireConnection<TileWireTemplate> wc : test) {
+				TileWireTemplate sinkWire = wc.getSinkWire();
+				unseenConnections.computeIfAbsent(sinkWire, k -> new HashSet<>()).add(wc);
 			}
 		}
 		if (gold != null) {
-			outer : for (WireConnection goldWc : gold) {
-				String connName = weGold.getWireName(goldWc.getWire());
-				Set<WireConnection> possibles = unseenConnections.get(
-						connName);
+			outer : for (WireConnection<TileWireTemplate> goldWc : gold) {
+				TileWireTemplate sinkWire = goldWc.getSinkWire();
+				Set<WireConnection<TileWireTemplate>> possibles = unseenConnections.get(sinkWire);
 				WireConnection testWc;
 				if (possibles == null) {
-					differences.add("connection", connName, "none");
+					differences.add("connection", sinkWire.getName(), "none");
 				} else if (possibles.size() > 1) {
-					Iterator<WireConnection> it = possibles.iterator();
+					Iterator<WireConnection<TileWireTemplate>> it = possibles.iterator();
 					while (it.hasNext()) {
 						WireConnection wc = it.next();
 						if (wc.getRowOffset() == goldWc.getRowOffset() &&
 								wc.getColumnOffset() == goldWc.getColumnOffset()) {
 							it.remove();
 							if (wc.isPIP() != goldWc.isPIP()) {
-								differences.down("connection", connName);
+								differences.down("connection", sinkWire.getName());
 								differences.add("pip", "" + goldWc.isPIP(), "" + wc.isPIP());
 								differences.up();
 							}
 							continue outer;
 						}
 					}
-					differences.down("connection", connName);
+					differences.down("connection", sinkWire.getName());
 					differences.add("connection",
 							"(" + goldWc.getRowOffset() + " " + goldWc.getColumnOffset() + ")",
 							"none");
 					differences.up();
 				} else if (possibles.size() == 1) {
 					testWc = possibles.iterator().next();
-					unseenConnections.remove(connName);
-					differences.down("connection", connName);
+					unseenConnections.remove(sinkWire);
+					differences.down("connection", sinkWire.getName());
 					if (goldWc.getRowOffset() != testWc.getRowOffset()) {
 						differences.add("rowOffset", "" + goldWc.getRowOffset(),
 								"" + testWc.getRowOffset());
@@ -409,10 +381,8 @@ public class DeviceDiffer {
 				}
 			}
 		}
-		for (String wc : unseenConnections.keySet()) {
-			if (filterWireConnectionFixes2(unseenConnections.get(wc).iterator().next()))
-				continue;
-			differences.add("connection", "none", wc);
+		for (TileWireTemplate wc : unseenConnections.keySet()) {
+			differences.add("connection", "none", wc.getName());
 		}
 	}
 

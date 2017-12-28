@@ -20,6 +20,7 @@
 package edu.byu.ece.rapidSmith.device.browser;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import com.trolltech.qt.core.QModelIndex;
@@ -61,8 +62,6 @@ public class DeviceBrowser extends QMainWindow{
 	private QLabel statusLabel;
 	/** The current device loaded */
 	private Device device;
-	/** The current wire enumerator */
-	private WireEnumerator we;
 	/** The current part name of the device loaded */
 	private String currPart;
 	/** This is the tree of parts to select */
@@ -110,7 +109,6 @@ public class DeviceBrowser extends QMainWindow{
 		currPart = parts.get(0);
 
 		device = RSEnvironment.defaultEnv().getDevice(currPart);
-		we = device.getWireEnumerator();
 
 		// Setup the scene and view for the GUI
 		scene = new DeviceBrowserScene(device, hideTiles, drawSites, this);
@@ -185,11 +183,10 @@ public class DeviceBrowser extends QMainWindow{
 		scene.clearCurrentLines();
 		if(currTile == null) return;
 		if(index.column() != 0) return;
-		int currWire = we.getWireEnum(index.data().toString());
-		if(currWire < 0) return;
-		if(currTile.getWireConnections(we.getWireEnum(index.data().toString())) == null) return;
-		for(WireConnection wire : currTile.getWireConnections(we.getWireEnum(index.data().toString()))){
-			scene.drawWire(currTile, currWire, wire.getTile(currTile), wire.getWire());
+		Wire currWire = currTile.getWire(index.data().toString());
+		if(currWire == null) return;
+		for(Connection c : currWire.getWireConnections()) {
+			scene.drawWire(currWire, c.getSinkWire());
 		}
 	}
 	
@@ -224,12 +221,12 @@ public class DeviceBrowser extends QMainWindow{
 	 */
 	private void updateWireList(){
 		wireList.clear();
-		if(currTile == null || currTile.getWireHashMap() == null) return;
-		for(Integer wire : currTile.getWireHashMap().keySet()) {
+		if(currTile == null) return;
+		for(Wire wire : currTile.getWires()) {
 			QTreeWidgetItem treeItem = new QTreeWidgetItem();
-			treeItem.setText(0, we.getWireName(wire));
-			WireConnection[] connections = currTile.getWireConnections(wire);
-			treeItem.setText(1, String.format("%3d", connections == null ? 0 : connections.length));
+			treeItem.setText(0, wire.getName());
+			Collection<Connection> connections = wire.getWireConnections();
+			treeItem.setText(1, String.format("%3d", connections.size()));
 			wireList.insertTopLevelItem(0, treeItem);
 		}
 		wireList.sortByColumn(0, SortOrder.AscendingOrder);
@@ -247,7 +244,6 @@ public class DeviceBrowser extends QMainWindow{
 				return;
 			currPart = (String) data;			
 			device = RSEnvironment.defaultEnv().getDevice(currPart);
-			we = device.getWireEnumerator();
 			scene.setDevice(device);
 			scene.initializeScene(hideTiles, drawSites);
 			statusLabel.setText("Loaded: "+currPart.toUpperCase());

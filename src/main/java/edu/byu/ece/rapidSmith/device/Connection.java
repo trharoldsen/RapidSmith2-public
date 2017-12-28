@@ -34,9 +34,9 @@ public abstract class Connection implements Serializable {
 	public final static class TileWireConnection extends Connection {
 		private static final long serialVersionUID = 7549238102833227662L;
 		private final TileWire sourceWire;
-		private final WireConnection wc;
+		private final WireConnection<TileWireTemplate> wc;
 
-		public TileWireConnection(TileWire sourceWire, WireConnection wc) {
+		public TileWireConnection(TileWire sourceWire, WireConnection<TileWireTemplate> wc) {
 			this.sourceWire = sourceWire;
 			this.wc = wc;
 		}
@@ -48,7 +48,7 @@ public abstract class Connection implements Serializable {
 
 		@Override
 		public TileWire getSinkWire() {
-			return new TileWire(wc.getTile(sourceWire.getTile()), wc.getWire());
+			return new TileWire(wc.getTile(sourceWire.getTile()), wc.getSinkWire());
 		}
 
 		@Override
@@ -64,7 +64,7 @@ public abstract class Connection implements Serializable {
 		@Override
 		public boolean isRouteThrough() {
 			Device device = sourceWire.getTile().getDevice();
-			return device.isRouteThrough(sourceWire.getWireEnum(), wc.getWire());
+			return device.isRouteThrough(sourceWire.getTemplate(), wc.getSinkWire());
 		}
 
 		@Override
@@ -110,7 +110,7 @@ public abstract class Connection implements Serializable {
 	public final static class ReverseTileWireConnection extends Connection {
 		private static final long serialVersionUID = -3585646572632532927L;
 		private final TileWire sourceWire;
-		private final WireConnection wc;
+		private final WireConnection<TileWireTemplate> wc;
 
 		public ReverseTileWireConnection(TileWire sourceWire, WireConnection wc) {
 			this.sourceWire = sourceWire;
@@ -124,7 +124,7 @@ public abstract class Connection implements Serializable {
 
 		@Override
 		public TileWire getSinkWire() {
-			return new TileWire(wc.getTile(sourceWire.getTile()), wc.getWire());
+			return new TileWire(wc.getTile(sourceWire.getTile()), wc.getSinkWire());
 		}
 
 		@Override
@@ -140,7 +140,7 @@ public abstract class Connection implements Serializable {
 		@Override
 		public boolean isRouteThrough() {
 			Device device = sourceWire.getTile().getDevice();
-			return device.isRouteThrough(wc.getWire(), sourceWire.getWireEnum());
+			return device.isRouteThrough(wc.getSinkWire(), sourceWire.getTemplate());
 		}
 
 		@Override
@@ -186,9 +186,9 @@ public abstract class Connection implements Serializable {
 	public final static class SiteWireConnection extends Connection {
 		private static final long serialVersionUID = -6889841775729826036L;
 		private final SiteWire sourceWire;
-		private final WireConnection wc;
+		private final WireConnection<SiteWireTemplate> wc;
 
-		public SiteWireConnection(SiteWire sourceWire, WireConnection wc) {
+		public SiteWireConnection(SiteWire sourceWire, WireConnection<SiteWireTemplate> wc) {
 			this.sourceWire = sourceWire;
 			this.wc = wc;
 		}
@@ -201,8 +201,7 @@ public abstract class Connection implements Serializable {
 		@Override
 		public SiteWire getSinkWire() {
 			Site site = sourceWire.getSite();
-			SiteType siteType = sourceWire.getSiteType();
-			return new SiteWire(site, siteType, wc.getWire());
+			return new SiteWire(site, wc.getSinkWire());
 		}
 
 		@Override
@@ -218,9 +217,7 @@ public abstract class Connection implements Serializable {
 		@Override
 		public boolean isRouteThrough() {
 			// bel routethrough
-			SiteType siteType = sourceWire.getSiteType();
-			int sourceEnum = sourceWire.getWireEnum();
-			return sourceWire.getSite().isRoutethrough(siteType, sourceEnum, wc.getWire());
+			return sourceWire.getSite().isRoutethrough(sourceWire.getTemplate(), wc.getSinkWire());
 		}
 
 		@Override
@@ -269,9 +266,9 @@ public abstract class Connection implements Serializable {
 	public final static class ReverseSiteWireConnection extends Connection {
 		private static final long serialVersionUID = -6889841775729826036L;
 		private final SiteWire sourceWire;
-		private final WireConnection wc;
+		private final WireConnection<SiteWireTemplate> wc;
 
-		public ReverseSiteWireConnection(SiteWire sourceWire, WireConnection wc) {
+		public ReverseSiteWireConnection(SiteWire sourceWire, WireConnection<SiteWireTemplate> wc) {
 			this.sourceWire = sourceWire;
 			this.wc = wc;
 		}
@@ -284,8 +281,7 @@ public abstract class Connection implements Serializable {
 		@Override
 		public SiteWire getSinkWire() {
 			Site site = sourceWire.getSite();
-			SiteType siteType = sourceWire.getSiteType();
-			return new SiteWire(site, siteType, wc.getWire());
+			return new SiteWire(site, wc.getSinkWire());
 		}
 
 		@Override
@@ -301,9 +297,7 @@ public abstract class Connection implements Serializable {
 		@Override
 		public boolean isRouteThrough() {
 			// bel routethrough
-			SiteType siteType = sourceWire.getSiteType();
-			int sourceEnum = sourceWire.getWireEnum();
-			return sourceWire.getSite().isRoutethrough(siteType, wc.getWire(), sourceEnum);
+			return sourceWire.getSite().isRoutethrough(wc.getSinkWire(), sourceWire.getTemplate());
 		}
 
 		@Override

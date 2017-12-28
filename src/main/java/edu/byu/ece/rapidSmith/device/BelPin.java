@@ -76,8 +76,7 @@ public final class BelPin implements Serializable {
 	 */
 	public SiteWire getWire() {
 		Bel bel = getBel();
-		SiteType siteType = bel.getId().getSiteType();
-		return new SiteWire(bel.getSite(), siteType, template.getWire());
+		return new SiteWire(bel.getSite(), template.getWire());
 	}
 
 	public PinDirection getDirection() {

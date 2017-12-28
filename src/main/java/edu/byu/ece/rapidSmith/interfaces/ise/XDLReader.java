@@ -241,18 +241,17 @@ public final class XDLReader {
 			if (tile == null)
 				throw new ParseException("unrecognized tile: " + tileName);
 
-			WireEnumerator we = device.getWireEnumerator();
-			Wire sourceWire = getWireSafe(we, tile, ctx.source.getText());
-			Wire sinkWire = getWireSafe(we, tile, ctx.source.getText());
+			Wire sourceWire = getWireSafe(tile, ctx.source.getText());
+			Wire sinkWire = getWireSafe(tile, ctx.source.getText());
 			PIP pip = new PIP(sourceWire, sinkWire);
 			currNet.addPIP(pip);
 		}
 
-		private Wire getWireSafe(WireEnumerator we, Tile tile, String wireName) {
-			Integer wireEnum = we.getWireEnum(wireName);
-			if (wireEnum == null)
+		private Wire getWireSafe(Tile tile, String wireName) {
+			Wire wire = tile.getWire(wireName);
+			if (wire == null)
 				throw new ParseException("unrecognized wire: " + wireName);
-			return new TileWire(tile, wireEnum);
+			return wire;
 		}
 
 		@Override

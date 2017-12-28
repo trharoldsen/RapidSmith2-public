@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import edu.byu.ece.rapidSmith.design.subsite.BelRoutethrough;
 import edu.byu.ece.rapidSmith.design.subsite.Cell;
@@ -36,21 +37,11 @@ import edu.byu.ece.rapidSmith.design.subsite.CellDesign;
 import edu.byu.ece.rapidSmith.design.subsite.CellNet;
 import edu.byu.ece.rapidSmith.design.subsite.CellPin;
 import edu.byu.ece.rapidSmith.design.subsite.ImplementationMode;
-import edu.byu.ece.rapidSmith.device.Connection;
+import edu.byu.ece.rapidSmith.device.*;
 import edu.byu.ece.rapidSmith.design.subsite.RouteTree;
-import edu.byu.ece.rapidSmith.device.BelPin;
-import edu.byu.ece.rapidSmith.device.Bel;
-import edu.byu.ece.rapidSmith.device.SitePin;
-import edu.byu.ece.rapidSmith.device.SiteType;
-import edu.byu.ece.rapidSmith.device.SiteWire;
-import edu.byu.ece.rapidSmith.device.Device;
-import edu.byu.ece.rapidSmith.device.Site;
-import edu.byu.ece.rapidSmith.device.Tile;
-import edu.byu.ece.rapidSmith.device.TileWire;
-import edu.byu.ece.rapidSmith.device.Wire;
-import edu.byu.ece.rapidSmith.device.WireEnumerator;
 
 import static edu.byu.ece.rapidSmith.util.Exceptions.ParseException;
+import static java.util.Collections.emptySet;
 
 /**
  * This class is used for parsing and writing routing XDC files in a TINCR checkpoint.
@@ -60,7 +51,6 @@ public class XdcRoutingInterface {
 
 	private final Device device;
 	private final CellDesign design;
-	private final WireEnumerator wireEnumerator;
 	private final HashMap<SitePin, IntrasiteRoute> sitePinToRouteMap;
 	private final Map<BelPin, CellPin> belPinToCellPinMap;
 	private final Map<SiteType, Set<String>> staticSourceMap;
@@ -83,7 +73,6 @@ public class XdcRoutingInterface {
 	 */
 	public XdcRoutingInterface(CellDesign design, Device device, Map<BelPin, CellPin> pinMap, ImplementationMode mode) {
 		this.device = device;
-		this.wireEnumerator = device.getWireEnumerator();
 		this.design = design;
 		this.sitePinToRouteMap = new HashMap<>();
 		this.staticSourceMap = new HashMap<>();
@@ -112,7 +101,7 @@ public class XdcRoutingInterface {
 	public Set<Bel> getStaticSourceBels() {
 		
 		return (staticSourceBels == null) ? 
-				Collections.emptySet() :
+				emptySet() :
 				staticSourceBels;
 	}
 		
@@ -220,9 +209,10 @@ public class XdcRoutingInterface {
 			
 			Site site = tryGetSite(sitePinToks[0]);
 			SitePin pin = tryGetSitePin(site, sitePinToks[1]);
-			
+
+			Set<Wire> usedWires = getUsedWiresFromPips(site);
 			if (pin.isInput()) { // of a site
-				createIntrasiteRoute(pin, net, design.getUsedSitePipsAtSite(site));
+				createIntrasiteRoute(pin, net, usedWires);
 			}
 			else { // pin is an output of the site
 				
@@ -238,7 +228,7 @@ public class XdcRoutingInterface {
 				net.addSourceSitePin(pin);
 				CellPin sourceCellPin = tryGetNetSource(net);
 				BelPin sourceBelPin = tryGetMappedBelPin(sourceCellPin);
-				createIntrasiteRoute(net, sourceBelPin, false, design.getUsedSitePipsAtSite(site));
+				createIntrasiteRoute(net, sourceBelPin, false, usedWires);
 			}
 		}
 		net.computeRouteStatus();
@@ -265,7 +255,7 @@ public class XdcRoutingInterface {
 		BelPin sourceBelPin = tryGetMappedBelPin(sourceCellPin);
 				
 		Site site = sourceBelPin.getBel().getSite();
-		createIntrasiteRoute(net, sourceBelPin, true, design.getUsedSitePipsAtSite(site));
+		createIntrasiteRoute(net, sourceBelPin, true, getUsedWiresFromPips(site));
 		net.setIsIntrasite(true);
 		net.computeRouteStatus();
 	}
@@ -296,7 +286,7 @@ public class XdcRoutingInterface {
 	}
 	
 	private Map<String, Set<String>> buildPipMap(String[] toks, int startIndex) {
-		Map<String, Set<String>> pipMap = new HashMap<String, Set<String>>();
+		Map<String, Set<String>> pipMap = new HashMap<>();
 		
 		// build the pip map for connections
 		for (int i = startIndex; i < toks.length; i++ ) {			
@@ -305,12 +295,12 @@ public class XdcRoutingInterface {
 			if (m.matches()) {
 				String source = m.group(1) + "/" + m.group(2);
 				String sink = m.group(1) + "/" + m.group(4);
-				pipMap.computeIfAbsent(source, k -> new HashSet<String>()).add(sink);
+				pipMap.computeIfAbsent(source, k -> new HashSet<>()).add(sink);
 				
 				// if the PIP is a bi-directional pip, add both directions to the map...
 				// the correct pip direction will be determined later in the routing import.
 				if (m.group(3).equals("<<->>")) {
-					pipMap.computeIfAbsent(sink, k -> new HashSet<String>()).add(source);
+					pipMap.computeIfAbsent(sink, k -> new HashSet<>()).add(source);
 				}
 			}
 			else {
@@ -338,14 +328,14 @@ public class XdcRoutingInterface {
 		// not returned through the Tcl interface.
 		if (net.sourceSitePinCount() == 0 && implementationMode == ImplementationMode.REGULAR) {
 			Site site = net.getSourceBelPin().getBel().getSite();
-			createIntrasiteRoute(net, net.getSourceBelPin(), false, design.getUsedSitePipsAtSite(site));
+			createIntrasiteRoute(net, net.getSourceBelPin(), false, getUsedWiresFromPips(site));
 		}
 		
 		assert (net.sourceSitePinCount() > 0 || implementationMode == ImplementationMode.OUT_OF_CONTEXT) : 
 			net.getName() + " should have at least one source site pin";
 		
 		// Using the pip map, recreate each route as a RouteTree object
-		List<SitePin> pinsToRemove = new ArrayList<SitePin>(); 
+		List<SitePin> pinsToRemove = new ArrayList<>();
 		//System.out.println(net.getSourceSitePins().size() + " " + net.getSourceSitePin().getName() + " " + net.getSourceSitePin().getExternalWire().getFullName());
 		for (SitePin sitePin : net.getSourceSitePins()) {
 			RouteTree netRouteTree = recreateRoutingNetwork2(net, sitePin.getExternalWire(), pipMap);
@@ -380,8 +370,7 @@ public class XdcRoutingInterface {
 				String[] wireToks = startWireName.split("/");
 				assert (wireToks.length == 2);
 				Tile tile = tryGetTile(wireToks[0]);
-				int wireEnum = tryGetWireEnum(wireToks[1]);
-				Wire startTileWire = new TileWire(tile, wireEnum);
+				Wire startTileWire = tryGetWire(tile, wireToks[1]);
 				RouteTree netRouteTree = recreateRoutingNetwork2(net, startTileWire, pipMap);
 				net.addIntersiteRouteTree(netRouteTree);
 				//assert this.pipUsedInRoute;
@@ -392,7 +381,21 @@ public class XdcRoutingInterface {
 			"Net " + net.getName() + " should have a source site pin. ";
 		net.computeRouteStatus();
 	}
-	
+
+	private TileWire tryGetWire(Tile tile, String wireName) {
+		TileWire startTileWire = tile.getWire(wireName);
+		if (startTileWire == null)
+			throw new ParseException("Wire " + wireName + " is not found in tile " + tile);
+		return startTileWire;
+	}
+
+	private SiteWire tryGetWire(Site site, String wireName) {
+		SiteWire startTileWire = site.getWire(wireName);
+		if (startTileWire == null)
+			throw new ParseException("Wire " + wireName + " is not found in site " + site);
+		return startTileWire;
+	}
+
 	/**
 	 * Creates a {@link RouteTree} data structure from a set of PIPs
 	 * that are in a net. Only wire connections that are enabled are traversed. 
@@ -411,13 +414,9 @@ public class XdcRoutingInterface {
 		Queue<RouteTree> searchQueue = new ArrayDeque<>();
 		Set<Wire> visited = new HashSet<>();
 		
-		Set<RouteTree> terminals = new HashSet<>();
-		
 		// initialize the search queue and visited wire set
 		searchQueue.add(start); 
 		visited.add(start.getWire());
-		
-		Set<String> emptySet = new HashSet<String>(1);
 		
 		while (!searchQueue.isEmpty()) {
 			
@@ -435,7 +434,7 @@ public class XdcRoutingInterface {
 				}
 				
 				if (conn.isPip()) { 
-					if (pipMap.getOrDefault(sourceWire.getFullName(), emptySet).contains(sinkWire.getFullName())) {
+					if (pipMap.getOrDefault(sourceWire.getFullName(), emptySet()).contains(sinkWire.getFullName())) {
 						this.pipUsedInRoute = true;
 						connectionCount++;
 						RouteTree sinkTree = routeTree.addConnection(conn);
@@ -454,12 +453,12 @@ public class XdcRoutingInterface {
 			// check to see if the current route tree object is connected to a valid sink site pin 
 			// the connection count is used to filter out routethrough site pins
 			SitePin sinkSitePin = routeTree.getConnectedSitePin();
-			
-			if (sinkSitePin != null && connectionCount == 0 && processSitePinSink(net, sinkSitePin)) {
-				terminals.add(routeTree);
+
+			if (sinkSitePin != null && connectionCount == 0) {
+				processSitePinSink(net, sinkSitePin);
 			}
 		}
-			
+
 		// prune useless paths from the route tree (i.e paths that go nowhere)
 		//start.prune(terminals);	
 		return start;
@@ -468,8 +467,7 @@ public class XdcRoutingInterface {
 	private Wire createTileWire(String startWireName) {
 		String[] startWireToks = startWireName.split("/");
 		Tile tile = tryGetTile(startWireToks[0]);
-		int wireEnum = tryGetWireEnum(startWireToks[1]);
-		return new TileWire(tile, wireEnum);
+		return tryGetWire(tile, startWireToks[1]);
 	}
 	
 	/**
@@ -551,12 +549,19 @@ public class XdcRoutingInterface {
 			Site site = tryGetSite(staticToks[0]);
 			Bel bel = tryGetBel(site, staticToks[1]);
 			BelPin sourcePin = tryGetBelPin(bel, staticToks[2]);
-			boolean routeFound = tryCreateStaticIntrasiteRoute(net, sourcePin, design.getUsedSitePipsAtSite(site));
+			Set<Wire> usedWires = getUsedWiresFromPips(site);
+			boolean routeFound = tryCreateStaticIntrasiteRoute(net, sourcePin, usedWires);
 			assert routeFound : site.getName() + "/" + bel.getName() + "/" + sourcePin.getName();
 			staticSourceBels.add(bel);
 		}
 	}
-	
+
+	private Set<Wire> getUsedWiresFromPips(Site site) {
+		return design.getUsedSitePipsAtSite(site).stream()
+					.flatMap(it -> Stream.of(it.getStartWire(), it.getEndWire()))
+					.collect(Collectors.toSet());
+	}
+
 	/**
 	 * Processes the "OOC_PORT" token in the placement.rsc of a RSCP. Specifically,
 	 * this function adds the OOC port and corresponding port wire to the oocPortMap
@@ -570,7 +575,7 @@ public class XdcRoutingInterface {
 		assert (toks.length == 3) : String.format("Token error on line %d: Expected format is \"OOC_PORT\" PortName Tile/Wire ", this.currentLineNumber); 
 		
 		if (this.oocPortMap == null) {
-			this.oocPortMap = new HashMap<String, String>();
+			this.oocPortMap = new HashMap<>();
 		}
 		
 		oocPortMap.put(toks[1], toks[2]); 
@@ -586,19 +591,17 @@ public class XdcRoutingInterface {
 	 */
 	private void readUsedSitePips(Site site, String[] toks) {
 		
-		HashSet<Integer> usedSitePips = new HashSet<>();
+		HashSet<PIP> usedSitePips = new HashSet<>();
 		
 		String namePrefix = "intrasite:" + site.getType().name() + "/";
 
 		//create hashmap that shows pip used to input val
-		HashMap<String, String> pipToInputVal = new HashMap<String, String>();
+		HashMap<String, String> pipToInputVal = new HashMap<>();
 		
 		// Iterate over the list of used site pips, and store them in the site
 		for(int i = 2; i < toks.length; i++) {
 			String pipWireName = (namePrefix + toks[i].replace(":", "."));
-			Integer wireEnum = tryGetWireEnum(pipWireName); 
-			
-			SiteWire sw = new SiteWire(site, wireEnum);
+			SiteWire sw = tryGetWire(site, pipWireName);
 			Collection<Connection> connList = sw.getWireConnections();
 			
 			// If the created wire has no connections, it is a polarity selector
@@ -614,10 +617,8 @@ public class XdcRoutingInterface {
 			assert (conn.isPip()) : "Site Pip connection should be a PIP connection!";
 			
 			//add the input and output pip wires (there are two of these in RS2)
-			// TODO: Is it useful to add the output wires?...I don't think these are necessary
-			usedSitePips.add(wireEnum); 	
-			usedSitePips.add(conn.getSinkWire().getWireEnum());
-			// tryGetWireEnum(pipWireName.split("\\.")[0] + ".OUT")
+			usedSitePips.add(new PIP(sw, conn.getSinkWire()));
+
 			String[] vals = toks[i].split(":");
 			assert vals.length == 2;
 			pipToInputVal.put(vals[0], vals[1]);
@@ -645,7 +646,7 @@ public class XdcRoutingInterface {
 			// TODO: update this with type information
 			boolean isVcc = pin.getBel().getName().contains("VCC");
 			CellNet net = isVcc ? design.getVccNet() : design.getGndNet();
-			tryCreateStaticIntrasiteRoute(net, pin, design.getUsedSitePipsAtSite(site));
+			tryCreateStaticIntrasiteRoute(net, pin, getUsedWiresFromPips(site));
 		}
 	}
 	
@@ -693,7 +694,7 @@ public class XdcRoutingInterface {
 	private void createStaticNetImplicitSinks(SitePin sitePin, CellNet net) {
 		
 		IntrasiteRoute staticRoute = new IntrasiteRouteSitePinSource(sitePin, net, true);
-		buildIntrasiteRoute(staticRoute, design.getUsedSitePipsAtSite(sitePin.getSite()));
+		buildIntrasiteRoute(staticRoute, getUsedWiresFromPips(sitePin.getSite()));
 		
 		if (!staticRoute.isValid()) {
 			// NOTE: there are cases in ultrascale where a static net connects to a site pin, but the signal goes nowhere in the site
@@ -715,7 +716,7 @@ public class XdcRoutingInterface {
 	 * @param net Net attached to that site pin
 	 * @param usedSiteWires Set of used pips within the site
 	 */
-	private void createIntrasiteRoute(SitePin pin, CellNet net, Set<Integer> usedSiteWires) {
+	private void createIntrasiteRoute(SitePin pin, CellNet net, Set<Wire> usedSiteWires) {
 	
 		IntrasiteRoute route = new IntrasiteRouteSitePinSource(pin, net, false);
 		buildIntrasiteRoute(route, usedSiteWires);
@@ -734,10 +735,9 @@ public class XdcRoutingInterface {
 	 * 
 	 * @param pin Bel Pin to start the route
 	 * @param isContained True if all sinks of the net are in the same site as the source
-	 * @param isStatic True if the source of the net is a VCC or GND bel
 	 * @param usedSiteWires Set of used pips within the site
 	 */
-	private void createIntrasiteRoute(CellNet net, BelPin pin, boolean isContained, Set<Integer> usedSiteWires) {
+	private void createIntrasiteRoute(CellNet net, BelPin pin, boolean isContained, Set<Wire> usedSiteWires) {
 	
 		IntrasiteRoute route = new IntrasiteRouteBelPinSource(net, pin, isContained);
 		buildIntrasiteRoute(route, usedSiteWires);
@@ -759,7 +759,7 @@ public class XdcRoutingInterface {
 	 * @param usedSiteWires Used site pips in the site
 	 * @return True if a route is found
 	 */
-	private boolean tryCreateStaticIntrasiteRoute(CellNet net, BelPin pin, Set<Integer> usedSiteWires) {
+	private boolean tryCreateStaticIntrasiteRoute(CellNet net, BelPin pin, Set<Wire> usedSiteWires) {
 		
 		IntrasiteRoute route = new IntrasiteRouteBelPinSource(net, pin, false);
 		buildIntrasiteRoute(route, usedSiteWires);
@@ -781,7 +781,7 @@ public class XdcRoutingInterface {
 	 * 						{@link IntrasiteRouteBelPinSource} for more details
 	 * @param usedSiteWires
 	 */
-	private void buildIntrasiteRoute(IntrasiteRoute intrasiteRoute, Set<Integer> usedSiteWires) {
+	private void buildIntrasiteRoute(IntrasiteRoute intrasiteRoute, Set<Wire> usedSiteWires) {
 		
 		// Initialize the search
 		Set<Wire> visitedWires = new HashSet<>(); // used to prevent cycles
@@ -853,11 +853,11 @@ public class XdcRoutingInterface {
 	 * @param sourceWire The source {@link Wire} of the connection
 	 * @param usedSiteWires A set of used wires in the {@link Site} that is currently being searched
 	 */
-	private boolean isQualifiedConnection(Connection conn, Wire sourceWire, Set<Integer> usedSiteWires) {
+	private boolean isQualifiedConnection(Connection conn, Wire sourceWire, Set<Wire> usedSiteWires) {
 				
 		return !conn.isPip() || // the connection is a regular wire connection
 				isUsedRoutethrough(conn, sourceWire) || // or, the connection is a used lut routethrough 
-				usedSiteWires.contains(sourceWire.getWireEnum()); // or the connection is a used site pip
+				usedSiteWires.contains(sourceWire); // or the connection is a used site pip
 	}
 	
 	/**
@@ -1076,25 +1076,6 @@ public class XdcRoutingInterface {
 		return cellPin.getMappedBelPin();
 	}
 	
-	
-	/**
-	 * Tries to retrieve the integer enumeration of a wire name in the currently loaded device <br>
-	 * If the wire does not exist, a ParseException is thrown <br>
-	 * @param wireName
-	 * @return
-	 */
-	private int tryGetWireEnum(String wireName) {
-		
-		Integer wireEnum = wireEnumerator.getWireEnum(wireName);
-		
-		if (wireEnum == null) {
-			throw new ParseException(String.format("Wire: \"%s\" does not exist in the current device. \n"
-												 + "On line %d of %s", wireName, currentLineNumber, currentFile));
-		}
-		
-		return wireEnum;
-	}
-	
 	/**
 	 * Creates a routing.xdc file from the nets of the given design. <br>
 	 * This file can be imported into Vivado to constrain the physical location of nets. 
@@ -1160,7 +1141,7 @@ public class XdcRoutingInterface {
 			routeString = routeString.concat(t.getName() + "/" + currentRoute.getWire().getName() + " ");
 						
 			// children may be changed in the following loop, so make a copy
-			ArrayList<RouteTree> children = new ArrayList<RouteTree>(currentRoute.getSinkTrees());
+			ArrayList<RouteTree> children = new ArrayList<>(currentRoute.getSinkTrees());
 			
 			if (children.size() == 0)
 				break;

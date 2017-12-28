@@ -23,12 +23,11 @@ package edu.byu.ece.rapidSmith.device;
 import edu.byu.ece.rapidSmith.device.Connection.ReverseTileWireConnection;
 import edu.byu.ece.rapidSmith.device.Connection.TileToSiteConnection;
 import edu.byu.ece.rapidSmith.device.Connection.TileWireConnection;
+import edu.byu.ece.rapidSmith.util.ArraySet;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -43,13 +42,13 @@ public class TileWire implements Wire, Serializable {
 
 	private static final long serialVersionUID = 5844788118958981887L;
 	private Tile tile;
-	private int wire;
+	private TileWireTemplate template;
 	
-	public TileWire(Tile tile, int wire) {
+	public TileWire(Tile tile, TileWireTemplate template) {
 		assert tile != null;
 
 		this.tile = tile;
-		this.wire = wire;
+		this.template = template;
 	}
 
 	@Override
@@ -57,34 +56,21 @@ public class TileWire implements Wire, Serializable {
 		return tile;
 	}
 
-	/**
-	 * @deprecated Use {@link #getName} instead.
-	 */
-	@Override
-	@Deprecated
-	public String getWireName() {
-		return getName();
-	}
-	
-	/**
-	 * @deprecated Use {@link #getFullName} instead.
-	 */
-	@Override
-	@Deprecated
-	public String getFullWireName() {
-		return getFullName();
-	}
-	
 	@Override
 	public String getName() {
-		return tile.getDevice().getWireEnumerator().getWireName(wire);
+		return template.getName();
 	}
 
 	@Override
 	public String getFullName() {
 		return getTile().getName() + "/" + getName();
 	}
-	
+
+	@Override
+	public int ordinal() {
+		return template.ordinal();
+	}
+
 	/**
 	 * Always returns null.
 	 */
@@ -93,32 +79,27 @@ public class TileWire implements Wire, Serializable {
 		return null;
 	}
 
-	@Override
-	public int getWireEnum() {
-		return wire;
+	public TileWireTemplate getTemplate() {
+		return template;
 	}
 
 	/**
 	 * Returns all sink connections within and between tiles.
 	 */
 	@Override
-	public Collection<Connection> getWireConnections() {	
-		WireConnection[] wireConnections = tile.getWireConnections(wire);
+	public Collection<Connection> getWireConnections() {
+		ArraySet<WireConnection<TileWireTemplate>> wireConnections = tile.getWireConnections(template);
 		if (wireConnections == null)
 			return Collections.emptyList();
 		
-		return Arrays.stream(wireConnections)
+		return wireConnections.stream()
 				.map(wc -> new TileWireConnection(this, wc))
 				.collect(Collectors.toList());
 	}
 	
-	public WireConnection[] getWireConnectionsArray(){
-		return tile.getWireConnections(wire);
-	}
-
 	@Override
 	public Collection<SitePin> getAllConnectedPins() {
-		Collection<SitePin> sitePins = tile.getSitePinsOfWire(this.wire);
+		Collection<SitePin> sitePins = tile.getSitePinsOfWire(this.template);
 		return sitePins.stream().filter(it -> !it.isInput())
 			.collect(Collectors.toSet());
 	}
@@ -141,7 +122,7 @@ public class TileWire implements Wire, Serializable {
 	 */
 	@Override
 	public SitePin getConnectedPin() {
-		SitePin sitePin = tile.getSitePinOfWire(this.wire);
+		SitePin sitePin = tile.getSitePinOfWire(this.template);
 		if (sitePin == null || !sitePin.isInput())
 			return null;
 		return sitePin;
@@ -170,22 +151,18 @@ public class TileWire implements Wire, Serializable {
 	 */
 	@Override
 	public Collection<Connection> getReverseWireConnections() {
-		WireConnection[] wireConnections = tile.getReverseConnections(wire);
+		ArraySet<WireConnection<TileWireTemplate>> wireConnections = tile.getReverseConnections(template);
 		if (wireConnections == null)
 			return Collections.emptyList();
 
-		return Arrays.stream(wireConnections)
+		return wireConnections.stream()
 				.map(wc -> new ReverseTileWireConnection(this, wc))
 				.collect(Collectors.toList());
 	}
 	
-	public WireConnection[] getReverseWireConnectionsArray() {
-		return tile.getReverseConnections(wire);
-	}
-
 	@Override
 	public Collection<SitePin> getAllReverseSitePins() {
-		Collection<SitePin> sitePins = tile.getSitePinsOfWire(this.wire);
+		Collection<SitePin> sitePins = tile.getSitePinsOfWire(this.template);
 		return sitePins.stream().filter(it -> !it.isOutput())
 			.collect(Collectors.toSet());
 	}
@@ -207,7 +184,7 @@ public class TileWire implements Wire, Serializable {
 	 */
 	@Override
 	public SitePin getReverseConnectedPin() {
-		SitePin sitePin = tile.getSitePinOfWire(this.wire);
+		SitePin sitePin = tile.getSitePinOfWire(this.template);
 		if (sitePin == null || !sitePin.isOutput())
 			return null;
 		return sitePin;
@@ -244,17 +221,17 @@ public class TileWire implements Wire, Serializable {
 			return false;
 		}
 		TileWire other = (TileWire) obj;
-		return Objects.equals(this.tile, other.tile)
-				&& this.wire == other.wire;
+		return this.tile.equals(other.tile)
+				&& this.template.equals(other.template);
 	}
 
 	@Override
 	public int hashCode() {
-		return wire * 31 + tile.hashCode();
+		return template.hashCode() * 8191 + tile.hashCode();
 	}
 
 	@Override
 	public String toString() {
-		return tile.getName() + " " + tile.getDevice().getWireEnumerator().getWireName(wire);
+		return tile.getName() + " " + template.getName();
 	}
 }

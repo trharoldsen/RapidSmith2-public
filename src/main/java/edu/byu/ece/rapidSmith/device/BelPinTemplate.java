@@ -36,7 +36,7 @@ public final class BelPinTemplate implements Serializable {
 	private BelId id;
 	private PinDirection direction;
 	// Wire the BEL pin connects to
-	private int wire;
+	private SiteWireTemplate wire;
 
 	public BelPinTemplate(BelId id, String name) {
 		this.name = name;
@@ -67,11 +67,11 @@ public final class BelPinTemplate implements Serializable {
 		this.direction = direction;
 	}
 
-	public int getWire() {
+	public SiteWireTemplate getWire() {
 		return wire;
 	}
 
-	public void setWire(int wire) {
+	public void setWire(SiteWireTemplate wire) {
 		this.wire = wire;
 	}
 

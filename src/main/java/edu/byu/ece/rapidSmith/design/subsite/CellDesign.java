@@ -22,6 +22,7 @@ package edu.byu.ece.rapidSmith.design.subsite;
 
 import edu.byu.ece.rapidSmith.design.AbstractDesign;
 import edu.byu.ece.rapidSmith.device.Bel;
+import edu.byu.ece.rapidSmith.device.PIP;
 import edu.byu.ece.rapidSmith.device.Site;
 import edu.byu.ece.rapidSmith.util.Exceptions;
 import edu.byu.ece.rapidSmith.interfaces.vivado.XdcConstraint;
@@ -55,7 +56,7 @@ public class CellDesign extends AbstractDesign {
 	/** The properties of this design. */
 	private final PropertyList properties;
 	/** Map from a site to the used SitePip wires in the site*/
-	private HashMap<Site, Set<Integer>> usedSitePipsMap;
+	private HashMap<Site, Set<PIP>> usedSitePipsMap;
 	/** The VCC RapidSmith net */
 	private CellNet vccNet;
 	/** The GND RapidSmith net */
@@ -716,7 +717,7 @@ public class CellDesign extends AbstractDesign {
 	 * @param ps {@link Site} to route
 	 * @param usedWires Set of wire enumerations that are used within a site.
 	 */
-	public void setUsedSitePipsAtSite(Site ps, Set<Integer> usedWires) {
+	public void setUsedSitePipsAtSite(Site ps, Set<PIP> usedWires) {
 		this.usedSitePipsMap.put(ps, usedWires);
 	}
 
@@ -725,7 +726,7 @@ public class CellDesign extends AbstractDesign {
 	 * 
 	 * @param ps {@link Site} object
 	 */
-	public  Set<Integer> getUsedSitePipsAtSite(Site ps) {
+	public  Set<PIP> getUsedSitePipsAtSite(Site ps) {
 		return this.usedSitePipsMap.getOrDefault(ps, Collections.emptySet());
 	}
 	
