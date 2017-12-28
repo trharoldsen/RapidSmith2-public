@@ -70,10 +70,5 @@ public class DeviceFilesCreator {
 		// Delete XDLRC file
 		System.out.println("Cleaning up XDLRC file.");
 		xdlrcRetriever.cleanupXDLRCFile();
-
-		// Building extended device info
-		System.out.println("Building extended info.");
-		new ExtendedDeviceInfo().buildExtendedInfo(device);
-		System.out.println("Finished writing extended info.");
 	}
 }

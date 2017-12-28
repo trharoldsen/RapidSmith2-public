@@ -20,13 +20,11 @@
 package edu.byu.ece.rapidSmith.device;
 
 import edu.byu.ece.rapidSmith.RSEnvironment;
+import edu.byu.ece.rapidSmith.primitiveDefs.PrimitiveDefList;
 import edu.byu.ece.rapidSmith.util.ArraySet;
 import edu.byu.ece.rapidSmith.util.HashPool;
-import edu.byu.ece.rapidSmith.primitiveDefs.PrimitiveDefList;
 
-import java.io.IOException;
 import java.io.Serializable;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -98,14 +96,6 @@ public class Device implements Serializable {
 		return RSEnvironment.defaultEnv().getDevice(partName);
 	}
 
-	public static Device getInstance(String partName, boolean loadExtendedInfo) {
-		Device device = getInstance(partName);
-		if (loadExtendedInfo && !device.hasExtendedInfo()) {
-			device.loadExtendedInfo();
-		}
-		return device;
-	}
-
 	//========================================================================//
 	// Getter and Setter Methods
 	//========================================================================//
@@ -148,31 +138,6 @@ public class Device implements Serializable {
 	 */
 	public void setFamily(FamilyType family) {
 		this.family = family;
-	}
-	
-	public boolean hasExtendedInfo() {
-		return extendedInfoLoaded;
-	}
-
-	public boolean loadExtendedInfo() {
-		Path partFolderPath = ExtendedDeviceInfo.getExtendedInfoPath(this);
-		ExtendedDeviceInfo info;
-		try {
-			info = ExtendedDeviceInfo.loadCompressedFile(partFolderPath);
-		} catch (IOException e) {
-			return false;
-		}
-		for (Tile tile : getTileMap().values()) {
-			tile.setReverseWireConnections(info.getReversedWireMap().get(tile.getName()));
-		}
-
-		for (SiteType type : info.getReversedSubsiteRouting().keySet()) {
-			SiteTemplate template = getSiteTemplate(type);
-			template.setReverseWireConnections(info.getReversedSubsiteRouting().get(type));
-		}
-
-		extendedInfoLoaded = true;
-		return true;
 	}
 
 	/**
