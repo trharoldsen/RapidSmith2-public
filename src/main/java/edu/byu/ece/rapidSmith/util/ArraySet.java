@@ -138,12 +138,6 @@ public class ArraySet<T extends Comparable<T>> implements Set<T>, Serializable {
 		elements = null;
 	}
 
-	public T get(int index) {
-		if (elements == null)
-			throw new IndexOutOfBoundsException("index");
-		return elements.get(index);
-	}
-
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;

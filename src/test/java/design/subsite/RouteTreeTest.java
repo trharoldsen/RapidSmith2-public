@@ -21,7 +21,6 @@
 package design.subsite;
 import edu.byu.ece.rapidSmith.design.subsite.RouteTree;
 import edu.byu.ece.rapidSmith.device.*;
-import edu.byu.ece.rapidSmith.util.ArraySet;
 import edu.byu.ece.rapidSmith.util.Exceptions.DesignAssemblyException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -120,7 +119,7 @@ class RouteTreeTest {
 		dummySite.setName("dummy_site");
 		dummySite.setIndex(0);
 		dummySite.setTypeUnchecked(dummySiteType);
-		dummySite.setPossibleTypes(new ArraySet<>(Arrays.asList(dummySiteType)));
+		dummySite.setPossibleTypes(Arrays.asList(dummySiteType));
 
 		SiteTemplate siteTemplate = device.getSiteTemplate(dummySiteType);
 		SitePinTemplate dummySinkTemplate = siteTemplate.getSitePin("DUMMY_SINK");
