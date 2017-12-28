@@ -265,7 +265,7 @@ public abstract class XDLRCParserListener {
 		public final List<String> cfgs;
 
 		public pl_ElementCfg(List<String> tokens) {
-			this.cfgs = tokens.subList(1, tokens.size());
+			this.cfgs = tokens.subList(1, tokens.size() - 1);
 		}
 	}
 
@@ -273,7 +273,7 @@ public abstract class XDLRCParserListener {
 		public final List<String> stats;
 
 		public pl_Summary(List<String> tokens) {
-			stats = tokens.subList(1, tokens.size());
+			stats = tokens.subList(1, tokens.size() - 1);
 		}
 	}
 }

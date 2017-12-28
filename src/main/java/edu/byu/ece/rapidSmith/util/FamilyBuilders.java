@@ -89,7 +89,7 @@ public class FamilyBuilders {
 				if (sites != null) {
 					for (Site site : sites) {
 						familyInfoData.siteTypes.add(site.getDefaultType().name());
-						ArraySet<SiteType> possibleTypes = site.getPossibleTypes();
+						List<SiteType> possibleTypes = site.getPossibleTypes();
 						if (possibleTypes != null) {
 							for (SiteType siteType : possibleTypes) {
 								familyInfoData.siteTypes.add(siteType.name());

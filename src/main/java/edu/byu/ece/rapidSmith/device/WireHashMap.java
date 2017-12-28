@@ -54,7 +54,7 @@ public class WireHashMap<T extends WireTemplate> implements Serializable {
 	/**
 	 * The keys table. Length MUST Always be a power of two.
 	 */
-	private T[] keys;
+	private WireTemplate[] keys;
 	
 	/**
 	 * The corresponding values table.
@@ -113,8 +113,8 @@ public class WireHashMap<T extends WireTemplate> implements Serializable {
 		this.loadFactor = loadFactor;
 		threshold = (int)(finalCapacity * loadFactor);
 		
-		keys = (T[]) new Object[finalCapacity];
-		values = (ArraySet<WireConnection<T>>[]) new Object[finalCapacity];
+		keys = new WireTemplate[finalCapacity];
+		values = (ArraySet<WireConnection<T>>[]) new ArraySet[finalCapacity];
 		size = 0;
 	}
 
@@ -174,16 +174,16 @@ public class WireHashMap<T extends WireTemplate> implements Serializable {
 	private void grow(){
 		int newCapacity = keys.length*2;
 		threshold = (int)(newCapacity * loadFactor);
-		Object[] oldKeys = keys;
-		Object[] oldValues = values;
-		keys = (T[]) new Object[newCapacity];
+		WireTemplate[] oldKeys = keys;
+		ArraySet<WireConnection<T>>[] oldValues = values;
+		keys = new WireTemplate[newCapacity];
 		Arrays.fill(keys, null);
-		values = (ArraySet<WireConnection<T>>[]) new Object[newCapacity];
+		values = (ArraySet<WireConnection<T>>[]) new ArraySet[newCapacity];
 		size = 0;
 		for(int i=0; i < oldKeys.length; i++){
 			if(oldKeys[i] != null){
 				//noinspection unchecked
-				put((T) oldKeys[i], (ArraySet<WireConnection<T>>) oldValues[i]);
+				put((T) oldKeys[i], oldValues[i]);
 			}
 		}
 	}
@@ -269,7 +269,7 @@ public class WireHashMap<T extends WireTemplate> implements Serializable {
 		private static final long serialVersionUID = -7369854899201714510L;
 		private int arrSize;
 		private float loadFactor;
-		private T[] keys;
+		private WireTemplate[] keys;
 		private int[] indices;
 		private ArraySet<WireConnection<T>>[] values;
 
@@ -277,10 +277,10 @@ public class WireHashMap<T extends WireTemplate> implements Serializable {
 		private WireHashMap<T> readResolve() {
 			WireHashMap<T> whm = new WireHashMap<>(loadFactor);
 			//noinspection unchecked
-			whm.keys = (T[]) new Object[arrSize];
+			whm.keys = new WireTemplate[arrSize];
 			Arrays.fill(whm.keys, null);
 			//noinspection unchecked
-			whm.values = (ArraySet<WireConnection<T>>[]) new Object[arrSize];
+			whm.values = (ArraySet<WireConnection<T>>[]) new ArraySet[arrSize];
 
 			for (int i = 0; i < keys.length; i++) {
 				whm.keys[indices[i]] = keys[i];
@@ -300,7 +300,7 @@ public class WireHashMap<T extends WireTemplate> implements Serializable {
 		repl.keys = new WireTemplate[size];
 		repl.indices = new int[size];
 		//noinspection unchecked
-		repl.values = (ArraySet<WireConnection<WireTemplate>>[]) new Object[size];
+		repl.values = new ArraySet[size];
 
 		int j = 0;
 		for (int i = 0; i < keys.length; i++) {

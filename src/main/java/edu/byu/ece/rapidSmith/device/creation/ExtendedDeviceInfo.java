@@ -50,7 +50,6 @@ public class ExtendedDeviceInfo implements Serializable {
 	private transient final HashPool<WireHashMap<TileWireTemplate>> tileConnMapPool = new HashPool<>();
 
 	private transient final HashPool<WireConnection<SiteWireTemplate>> siteConnPool = new HashPool<>();
-	private transient final HashPool<ArraySet<WireConnection<SiteWireTemplate>>> siteConnSetPool = new HashPool<>();
 
 	private Map<String, WireHashMap<TileWireTemplate>> reversedWireHashMap = new HashMap<>(); // tile names to wirehashmap
 	private Map<SiteType, WireHashMap<SiteWireTemplate>> reversedSubsiteRouting = new HashMap<>();
@@ -119,26 +118,42 @@ public class ExtendedDeviceInfo implements Serializable {
 		for (Tile srcTile : device.getTiles()) {
 			for (Wire srcWire : srcTile.getWires()) {
 				TileWireTemplate srcEnum = ((TileWire) srcWire).getTemplate();
-				for (WireConnection<TileWireTemplate> c : srcTile.getWireHashMap().get(srcEnum)) {
-					if (c.getTile(srcTile) == tile) {
-						WireConnection<TileWireTemplate> reverse = new WireConnection<>(
+				ArraySet<WireConnection<TileWireTemplate>> wcs = srcTile.getWireHashMap().get(srcEnum);
+				if (wcs != null) {
+					for (WireConnection<TileWireTemplate> c : wcs) {
+						if (c.getTile(srcTile) == tile) {
+							WireConnection<TileWireTemplate> reverse = new WireConnection<>(
 								srcEnum, -c.getRowOffset(),
 								-c.getColumnOffset(), c.isPIP());
-						WireConnection<TileWireTemplate> pooled = tileConnPool.add(reverse);
-						reverseMap.computeIfAbsent(c.getSinkWire(), k -> new ArraySet<>())
+							WireConnection<TileWireTemplate> pooled = tileConnPool.add(reverse);
+							reverseMap.computeIfAbsent(c.getSinkWire(), k -> new ArraySet<>())
 								.add(pooled);
+						}
 					}
 				}
 			}
 		}
 
+
+
 		WireHashMap<TileWireTemplate> wireHashMap = new WireHashMap<>();
 		for (Map.Entry<TileWireTemplate, ArraySet<WireConnection<TileWireTemplate>>> e : reverseMap.entrySet()) {
 			ArraySet<WireConnection<TileWireTemplate>> v = e.getValue();
-			wireHashMap.put(e.getKey(), tileConnSetPool.add(v));
+			wireHashMap.put(e.getKey(), v);
 		}
 
-		tile.setReverseWireConnections(tileConnMapPool.add(wireHashMap));
+		WireHashMap<TileWireTemplate> pooled = tileConnMapPool.add(wireHashMap);
+		if (pooled == wireHashMap) {
+			// reduce the individual components in the map
+			for (TileWireTemplate key : pooled.keySet()) {
+				ArraySet<WireConnection<TileWireTemplate>> v = pooled.get(key);
+				ArraySet<WireConnection<TileWireTemplate>> pooledv = tileConnSetPool.add(v);
+				pooledv.trimToSize();
+				pooled.put(key, pooledv);
+			}
+		}
+
+		tile.setReverseWireConnections(pooled);
 	}
 
 	private void reverseSubsiteWires(Device device) {
@@ -151,20 +166,23 @@ public class ExtendedDeviceInfo implements Serializable {
 	private WireHashMap<SiteWireTemplate> getReverseMapForSite(SiteTemplate site) {
 		Map<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> reverseMap = new HashMap<>();
 		for (SiteWireTemplate srcWire : site.getSiteWires().values()) {
-			for (WireConnection<SiteWireTemplate> c : site.getWireConnections(srcWire)) {
-				WireConnection<SiteWireTemplate> reverse = new WireConnection<>(
+			ArraySet<WireConnection<SiteWireTemplate>> wcs = site.getWireConnections(srcWire);
+			if (wcs != null) {
+				for (WireConnection<SiteWireTemplate> c : wcs) {
+					WireConnection<SiteWireTemplate> reverse = new WireConnection<>(
 						srcWire, -c.getRowOffset(),
 						-c.getColumnOffset(), c.isPIP());
-				WireConnection<SiteWireTemplate> pooled = siteConnPool.add(reverse);
-				reverseMap.computeIfAbsent(c.getSinkWire(), k -> new ArraySet<>()).add(pooled);
+					WireConnection<SiteWireTemplate> pooled = siteConnPool.add(reverse);
+					reverseMap.computeIfAbsent(c.getSinkWire(), k -> new ArraySet<>()).add(pooled);
+				}
 			}
 		}
 
-		// TODO do I really need to reduce this?
 		WireHashMap<SiteWireTemplate> wireHashMap = new WireHashMap<>();
 		for (Map.Entry<SiteWireTemplate, ArraySet<WireConnection<SiteWireTemplate>>> e : reverseMap.entrySet()) {
 			ArraySet<WireConnection<SiteWireTemplate>> v = e.getValue();
-			wireHashMap.put(e.getKey(), siteConnSetPool.add(v));
+			v.trimToSize();
+			wireHashMap.put(e.getKey(), v);
 		}
 
 		return wireHashMap;

@@ -49,7 +49,7 @@ public final class Site implements Serializable{
 	/** Stores the template of the type that has been assigned to this site. */
 	private SiteTemplate template;
 	/** List of possible types for this site. */
-	private ArraySet<SiteType> possibleTypes;
+	private List<SiteType> possibleTypes;
 	/**
 	 * A map of the external wire each pin connects to for each site type this
 	 * site can be represented as.
@@ -199,7 +199,7 @@ public final class Site implements Serializable{
 	 *
 	 * @return the possible types for this site
 	 */
-	public ArraySet<SiteType> getPossibleTypes() {
+	public List<SiteType> getPossibleTypes() {
 		return possibleTypes;
 	}
 
@@ -209,7 +209,7 @@ public final class Site implements Serializable{
 	 * This method does not update the type of the site.
 	 * @param possibleTypes the possible types for this site
 	 */
-	public void setPossibleTypes(ArraySet<SiteType> possibleTypes) {
+	public void setPossibleTypes(List<SiteType> possibleTypes) {
 		this.possibleTypes = possibleTypes;
 	}
 
@@ -769,8 +769,10 @@ public final class Site implements Serializable{
 		private static final long serialVersionUID = 3178000777471034057L;
 		/** Name of the site with X and Y coordinates (ie. SLICE_X0Y0) */
 		private String name;
-		private ArraySet<SiteType> possibleTypes;
+		private List<SiteType> possibleTypes;
 		private Map<SiteType, Map<String, TileWireTemplate>> externalWires;
+		private Integer instanceX;
+		private Integer instancyY;
 		private BondedType bondedType;
 
 		@SuppressWarnings("unused")
@@ -780,6 +782,10 @@ public final class Site implements Serializable{
 			site.possibleTypes = possibleTypes;
 			site.externalWires = externalWires;
 			site.bondedType = bondedType;
+			if (instanceX != null || instancyY != null || !site.parseCoordinatesFromName(name)) {
+				site.instanceX = (instanceX != null) ? instanceX : -1;
+				site.instanceY = (instanceX != null) ? instanceX : -1;
+			}
 			return site;
 		}
 	}
@@ -791,6 +797,8 @@ public final class Site implements Serializable{
 		repl.possibleTypes = possibleTypes;
 		repl.externalWires = externalWires;
 		repl.bondedType = bondedType;
+		repl.instanceX = instanceX;
+		repl.instancyY = instanceY;
 		return repl;
 	}
 }
