@@ -26,7 +26,7 @@ import com.trolltech.qt.gui.QGraphicsSceneHoverEvent;
 import com.trolltech.qt.gui.QGraphicsSceneMouseEvent;
 import com.trolltech.qt.gui.QPen;
 
-import edu.byu.ece.rapidSmith.device.Wire;
+import edu.byu.ece.rapidSmith.device.TileWire;
 import edu.byu.ece.rapidSmith.gui.TileScene;
 
 /**
@@ -43,7 +43,7 @@ public class WireConnectionLine extends QGraphicsLineItem{
 	/** The current DeviceBrowser scene */
 	private TileScene scene;
 	/** The current wire */
-	private Wire wire;
+	private TileWire wire;
 	
 	/** 
 	 * Creates a new wire connection line.
@@ -55,7 +55,7 @@ public class WireConnectionLine extends QGraphicsLineItem{
 	 * @param wire The wire.
 	 */
 	WireConnectionLine(double x1, double y1, double x2, double y2,
-	                   TileScene scene, Wire wire){
+	                   TileScene scene, TileWire wire){
 		super(x1, y1, x2, y2);
 		this.scene = scene;
 		this.wire = wire;

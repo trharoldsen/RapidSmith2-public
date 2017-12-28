@@ -183,10 +183,10 @@ public class DeviceBrowser extends QMainWindow{
 		scene.clearCurrentLines();
 		if(currTile == null) return;
 		if(index.column() != 0) return;
-		Wire currWire = currTile.getWire(index.data().toString());
+		TileWire currWire = currTile.getWire(index.data().toString());
 		if(currWire == null) return;
 		for(Connection c : currWire.getWireConnections()) {
-			scene.drawWire(currWire, c.getSinkWire());
+			scene.drawWire(currWire, (TileWire) c.getSinkWire());
 		}
 	}
 	
