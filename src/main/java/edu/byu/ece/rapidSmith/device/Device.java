@@ -726,6 +726,7 @@ public class Device implements Serializable {
 		private Collection<SiteTemplate> siteTemplates;
 		private PrimitiveDefList primitiveDefs;
 		private Map<String, PackagePin> packagePinMap;
+		private Integer numUniqueWireTypes;
 
 		public void readResolve(Device device) {
 			device.partName = partName;
@@ -746,6 +747,7 @@ public class Device implements Serializable {
 				device.siteTemplates.put(template.getType(), template);
 			}
 			device.primitiveDefs = primitiveDefs;
+			device.numUniqueWireTypes = (numUniqueWireTypes != null) ? numUniqueWireTypes : -1;
 
 			device.constructTileMap();
 			device.constructDependentResources();
@@ -778,5 +780,6 @@ public class Device implements Serializable {
 		repl.siteTemplates = siteTemplates.values();
 		repl.primitiveDefs = primitiveDefs;
 		repl.packagePinMap = packagePinMap;
+		repl.numUniqueWireTypes = numUniqueWireTypes;
 	}
 }
