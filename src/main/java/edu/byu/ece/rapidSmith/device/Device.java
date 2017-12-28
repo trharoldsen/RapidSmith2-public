@@ -45,7 +45,7 @@ public class Device implements Serializable {
 	/** This is the current device file version (saved in file to ensure proper compatibility) */
 	public static final String LATEST_DEVICE_FILE_VERSION = "1.1";
 	/** The current release of the tools */
-	public static final String rapidSmithVersion = "2.0.0";
+	public static final String rapidSmithVersion = "1.1.0";
 	private static final long serialVersionUID = 3980157455165403758L;
 
 	//========================================================================//
