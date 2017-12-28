@@ -21,6 +21,7 @@
 package design.subsite;
 import edu.byu.ece.rapidSmith.design.subsite.RouteTree;
 import edu.byu.ece.rapidSmith.device.*;
+import edu.byu.ece.rapidSmith.util.ArraySet;
 import edu.byu.ece.rapidSmith.util.Exceptions.DesignAssemblyException;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
@@ -52,6 +53,16 @@ class RouteTreeTest {
 		makeDummyDevice();
 	}
 
+	private static SiteWireTemplate makeSiteWire(SiteTemplate site, int i) {
+		String wireName = "dummy_wire_" + i;
+		return new SiteWireTemplate(wireName, site.getType(), i);
+	}
+
+	private static TileWireTemplate makeTileWire(int i) {
+		String wireName = "dummy_wire_" + i;
+		return new TileWireTemplate(wireName, i);
+	}
+
 	private static void makeDummyDevice() {
 
 		FamilyType dummyFamilyType = FamilyType.valueOf("DUMMY_FAMILY");
@@ -60,7 +71,6 @@ class RouteTreeTest {
 		device = new Device();
 		device.setFamily(dummyFamilyType);
 		device.setPartName("rsdummy01");
-		device.setWireEnumerator(makeWireEnumerator());
 		SiteTemplate dummySiteTemplate = makeSiteTemplate(dummySiteType);
 		Map<SiteType, SiteTemplate> siteTemplates = new HashMap<>();
 		siteTemplates.put(dummySiteType, dummySiteTemplate);
@@ -79,33 +89,19 @@ class RouteTreeTest {
 		HashMap<String, SitePinTemplate> sinks = new HashMap<>();
 		SitePinTemplate dummySink = new SitePinTemplate("DUMMY_SINK", dummySiteType);
 		dummySink.setDirection(PinDirection.IN);
-		dummySink.setInternalWire(4);
+		dummySink.setInternalWire(makeSiteWire(dummySiteTemplate, 104));
 		sinks.put("DUMMY_SINK", dummySink);
 		dummySiteTemplate.setSinks(sinks);
 
 		HashMap<String, SitePinTemplate> sources = new HashMap<>();
 		SitePinTemplate dummySource = new SitePinTemplate("DUMMY_SOURCE", dummySiteType);
 		dummySource.setDirection(PinDirection.OUT);
-		dummySource.setInternalWire(5);
+		dummySource.setInternalWire(makeSiteWire(dummySiteTemplate, 105));
 		sources.put("DUMMY_SOURCE", dummySource);
 		dummySiteTemplate.setSources(sources);
 		return dummySiteTemplate;
 	}
 
-
-	private static WireEnumerator makeWireEnumerator() {
-		String[] wires = new String[5];
-		Map<String, Integer> wireMap = new HashMap<>(10);
-		for (int i = 0; i < wires.length; i++) {
-			String wireName = "dummy_wire_" + i;
-			wires[i] = wireName;
-			wireMap.put(wireName, i);
-		}
-		WireEnumerator we = new WireEnumerator();
-		we.setWireMap(wireMap);
-		we.setWires(wires);
-		return we;
-	}
 
 	private static void makeDummyTile(
 		Tile dummyTile, FamilyType dummyFamilyType, SiteType dummySiteType
@@ -124,23 +120,25 @@ class RouteTreeTest {
 		dummySite.setName("dummy_site");
 		dummySite.setIndex(0);
 		dummySite.setType(dummySiteType);
-		dummySite.setPossibleTypes(new SiteType[] {dummySiteType});
+		dummySite.setPossibleTypes(new ArraySet<>(Arrays.asList(dummySiteType)));
 
 		SiteTemplate siteTemplate = device.getSiteTemplate(dummySiteType);
 		SitePinTemplate dummySinkTemplate = siteTemplate.getSitePin("DUMMY_SINK");
 		SitePinTemplate dummySourceTemplate = siteTemplate.getSitePin("DUMMY_SOURCE");
 
-		Map<SiteType, Map<String, Integer>> externalWires = new HashMap<>();
-		Map<String, Integer> eWires = new HashMap<>();
-		eWires.put("DUMMY_SITE_PIN", 4);
-		eWires.put("DUMMY_SOURCE_PIN", 5);
+		Map<SiteType, Map<String, TileWireTemplate>> externalWires = new HashMap<>();
+		Map<String, TileWireTemplate> eWires = new HashMap<>();
+		TileWireTemplate wire4 = makeTileWire(4);
+		TileWireTemplate wire5 = makeTileWire(5);
+		eWires.put("DUMMY_SITE_PIN", wire4);
+		eWires.put("DUMMY_SOURCE_PIN", wire5);
 		externalWires.put(dummySiteType, eWires);
 		dummySite.setExternalWires(externalWires);
 
-		Map<SiteType, Map<Integer, SitePinTemplate>> e2pMap = new HashMap<>();
-		Map<Integer, SitePinTemplate> e2pinMap = new HashMap<>();
-		e2pinMap.put(4, dummySinkTemplate);
-		e2pinMap.put(5, dummySourceTemplate);
+		Map<SiteType, Map<TileWireTemplate, SitePinTemplate>> e2pMap = new HashMap<>();
+		Map<TileWireTemplate, SitePinTemplate> e2pinMap = new HashMap<>();
+		e2pinMap.put(wire4, dummySinkTemplate);
+		e2pinMap.put(wire5, dummySourceTemplate);
 		e2pMap.put(dummySiteType, e2pinMap);
 		dummySite.setExternalWireToPinMap(e2pMap);
 	}
@@ -152,8 +150,8 @@ class RouteTreeTest {
 	void setUp() {
 		// each RouteTree has a unique value so that they hash differently
 		root = newDummyTree(); // unique value = 0
-		branch = root.addConnection(newDummyConnection(root.getWire(), 1, false)); // unique value = 1
-		leaf = branch.addConnection(newDummyConnection(root.getWire(), 2, true)); // unique value = 2
+		branch = root.addConnection(newDummyConnection(root.getWire(), makeTileWire(1), false)); // unique value = 1
+		leaf = branch.addConnection(newDummyConnection(root.getWire(), makeTileWire(2), true)); // unique value = 2
 	}
 
 	/**
@@ -162,18 +160,18 @@ class RouteTreeTest {
 	 * @return a new RouteTree containing a simple connection
 	 */
 	private RouteTree newDummyTree() {
-		return new RouteTree(new TileWire(device.getTile(0), 0));
+		return new RouteTree(new TileWire(device.getTile(0), makeTileWire(0)));
 	}
 
 	/**
 	 * A helper function to create a simple connection
 	 *
-	 * @param wireEnum this can be any number. It is used to make each Connection have a different hashCode()
+	 * @param template this can be any number. It is used to make each Connection have a different hashCode()
 	 * @param isPip boolean to determine wether or not the Connection is a PIP
 	 * @return the built connection
 	 */
-	private Connection newDummyConnection(Wire source, int wireEnum, boolean isPip) {
-		WireConnection wc = new WireConnection(wireEnum, 0, 0, isPip);
+	private Connection newDummyConnection(Wire source, TileWireTemplate template, boolean isPip) {
+		WireConnection<TileWireTemplate> wc = new WireConnection<>(template, 0, 0, isPip);
 		return new Connection.TileWireConnection((TileWire) source, wc);
 	}
 
@@ -300,22 +298,22 @@ class RouteTreeTest {
 	void testGetConnectedSitePin() {
 		Site site = device.getTile(0).getSite(0);
 		SitePin pin = site.getSinkPin("DUMMY_SITE_PIN");
-		RouteTree t = leaf.addConnection(newDummyConnection(leaf.getWire(), 4, false));
+		RouteTree t = leaf.addConnection(newDummyConnection(leaf.getWire(), makeTileWire(4), false));
 		assertEquals(pin, t.getConnectedSitePin());
 	}
 
 	@Test
 	@DisplayName("getConnectedSitePin is unidirectional")
 	void testGetConnectedSitePin2() {
-		RouteTree t = leaf.addConnection(newDummyConnection(leaf.getWire(), 5, false));
+		RouteTree t = leaf.addConnection(newDummyConnection(leaf.getWire(), makeTileWire(5), false));
 		assertNull(t.getConnectedSitePin());
 	}
 
 	@Test
 	@DisplayName("connect different route trees")
 	void testConnectTwoRouteTrees() {
-		RouteTree tree2 = new RouteTree(new TileWire(device.getTile(0), 5));
-		Connection c = newDummyConnection(tree2.getWire(), 0, true);
+		RouteTree tree2 = new RouteTree(new TileWire(device.getTile(0), makeTileWire(5)));
+		Connection c = newDummyConnection(tree2.getWire(), makeTileWire(0), true);
 		tree2.addConnection(c, root);
 		assertAll(
 			() -> assertTrue(tree2.getSinkTrees().contains(root)),
@@ -327,8 +325,8 @@ class RouteTreeTest {
 	@Test
 	@DisplayName("cannot connect already sourced tree")
 	void testSourcingAlreadySourcedTree() {
-		RouteTree tree2 = new RouteTree(new TileWire(device.getTile(0), 5));
-		Connection c = newDummyConnection(tree2.getWire(), 1, true);
+		RouteTree tree2 = new RouteTree(new TileWire(device.getTile(0), makeTileWire(5)));
+		Connection c = newDummyConnection(tree2.getWire(), makeTileWire(1), true);
 		assertThrows(DesignAssemblyException.class,
 			() -> tree2.addConnection(c, branch));
 	}
@@ -336,8 +334,8 @@ class RouteTreeTest {
 	@Test
 	@DisplayName("error thrown when mismatch occurs between connection and tree wire")
 	void testMismatchedWireWhenConnectingTrees() {
-		RouteTree tree2 = new RouteTree(new TileWire(device.getTile(0), 5));
-		Connection c = newDummyConnection(tree2.getWire(), 1, true);
+		RouteTree tree2 = new RouteTree(new TileWire(device.getTile(0), makeTileWire(5)));
+		Connection c = newDummyConnection(tree2.getWire(), makeTileWire(1), true);
 		assertThrows(DesignAssemblyException.class,
 			() -> tree2.addConnection(c, leaf));
 	}
@@ -346,7 +344,7 @@ class RouteTreeTest {
 	@DisplayName("test prefix iterator")
 	void testPrefixIterator() {
 		// adds an extra branch to the tree
-		Connection c = newDummyConnection(root.getWire(), 4, false);
+		Connection c = newDummyConnection(root.getWire(), makeTileWire(4), false);
 		RouteTree branch2 = root.addConnection(c);
 		Iterator<RouteTree> it = root.prefixIterator();
 		assertTrue(it.hasNext());
@@ -382,7 +380,7 @@ class RouteTreeTest {
 	@DisplayName("tests iterator method")
 	void testIterator() {
 		// adds an extra branch to the tree
-		Connection c = newDummyConnection(root.getWire(), 4, false);
+		Connection c = newDummyConnection(root.getWire(), makeTileWire(4), false);
 		RouteTree branch2 = root.addConnection(c);
 
 		Set<RouteTree> nodes = new HashSet<>();
@@ -402,7 +400,7 @@ class RouteTreeTest {
 	@DisplayName("tests iterator does not include sources method")
 	void testIteratorMiddle() {
 		// adds an extra branch to the tree
-		Connection c = newDummyConnection(root.getWire(), 4, false);
+		Connection c = newDummyConnection(root.getWire(), makeTileWire(4), false);
 		root.addConnection(c);
 
 		Set<RouteTree> nodes = new HashSet<>();
@@ -420,7 +418,7 @@ class RouteTreeTest {
 	@DisplayName("tests iterator does not include sources method")
 	void testPrefixIteratorMiddle() {
 		// adds an extra branch to the tree
-		Connection c = newDummyConnection(root.getWire(), 4, false);
+		Connection c = newDummyConnection(root.getWire(), makeTileWire(4), false);
 		root.addConnection(c);
 
 		List<RouteTree> nodes = new ArrayList<>();

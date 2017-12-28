@@ -66,7 +66,7 @@ public class DeviceBrowserScene extends TileScene{
 		currLines.clear();
 	}
 
-	void drawWire(Wire src, Wire dst) {
+	void drawWire(TileWire src, TileWire dst) {
 		int numWires = device.getNumUniqueWireTypes();
 		int srcOrdinal = src.ordinal();
 		int dstOrdinal = dst.ordinal();
@@ -87,7 +87,7 @@ public class DeviceBrowserScene extends TileScene{
 		clearCurrentLines();
 		if(wire == null) return;
 		for(Connection w : wire.getWireConnections()) {
-			drawWire(wire, w.getSinkWire());
+			drawWire(wire, (TileWire) w.getSinkWire());
 		}
 	}
 

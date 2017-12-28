@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import edu.byu.ece.rapidSmith.design.subsite.*;
 import edu.byu.ece.rapidSmith.device.families.FamilyInfo;
@@ -734,8 +735,9 @@ public abstract class DesignVerificationTest {
 			
 			// 
 			Set<String> usedSitePips = design.getUsedSitePipsAtSite(site).stream()
-					.map(intEnum -> device.getWireEnumerator().getWireName(intEnum).split("/")[1])
-					.collect(Collectors.toSet());
+				.flatMap(w -> Stream.of(w.getStartWire(), w.getEndWire()))
+				.map(w -> w.getName().split("/")[1])
+				.collect(Collectors.toSet());
 				
 			if (usedSitePips.isEmpty()) {
 				assertTrue(results.get(1).isEmpty());
