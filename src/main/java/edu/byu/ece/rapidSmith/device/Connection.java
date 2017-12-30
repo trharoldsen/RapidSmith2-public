@@ -95,7 +95,6 @@ public abstract class Connection implements Serializable {
 
 		@Override
 		public int hashCode() {
-
 			return Objects.hash(tile, template);
 		}
 	}

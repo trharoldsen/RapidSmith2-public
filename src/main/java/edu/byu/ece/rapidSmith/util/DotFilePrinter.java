@@ -312,7 +312,7 @@ public class DotFilePrinter {
 			
 			// only print edges if the route tree has any
 			if (!tmp.isLeaf()) {
-				for (RouteTree sink : tmp.getSinkTrees()) {
+				for (RouteTree sink : tmp.getChildren()) {
 					builder.append(String.format(" %d->%d\n", nodeIds.get(tmp), nodeIds.get(sink)));
 					rtQueue.add(sink);
 				}

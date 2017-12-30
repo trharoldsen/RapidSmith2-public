@@ -33,7 +33,7 @@ public class AStarRouterExample {
 		VivadoCheckpoint vcp = VivadoInterface.loadRSCP(checkpoint);
 		CellDesign design = vcp.getDesign();
 		Device device = vcp.getDevice();
-		
+
 		// Routing net
 		System.out.println("Routing Net...");
 		AStarRouter router = new AStarRouter();
