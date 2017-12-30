@@ -32,8 +32,9 @@ public final class SitePinTemplate implements Serializable {
 	private final SiteType siteType;
 	private PinDirection direction;
 	private SiteWireTemplate internalWire;
+	private int index;
 
-	public SitePinTemplate(String name, SiteType siteType) {
+	public SitePinTemplate(String name, SiteType siteType, int index) {
 		this.name = name;
 		this.siteType = siteType;
 	}
@@ -68,6 +69,10 @@ public final class SitePinTemplate implements Serializable {
 
 	public boolean isOutput() {
 		return direction == PinDirection.OUT || direction == PinDirection.INOUT;
+	}
+
+	public int getIndex() {
+		return index;
 	}
 
 	@Override

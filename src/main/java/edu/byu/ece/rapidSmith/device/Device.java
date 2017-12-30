@@ -21,8 +21,6 @@ package edu.byu.ece.rapidSmith.device;
 
 import edu.byu.ece.rapidSmith.RSEnvironment;
 import edu.byu.ece.rapidSmith.primitiveDefs.PrimitiveDefList;
-import edu.byu.ece.rapidSmith.util.ArraySet;
-import edu.byu.ece.rapidSmith.util.HashPool;
 
 import java.io.Serializable;
 import java.util.*;
@@ -49,7 +47,6 @@ public class Device implements Serializable {
 	//========================================================================//
 	// Class Members
 	//========================================================================//
-	private boolean extendedInfoLoaded = false;
 	/** The Xilinx part name of the device (ie. xc4vfx12ff668, omits the speed grade) */
 	private String partName;
 	/** The Xilinx family of this part */
@@ -66,8 +63,6 @@ public class Device implements Serializable {
 	private HashMap<String, Site> sites;
 	/** Keeps track of which Wire objects have a corresponding PIPRouteThrough */
 	private Map<TileWireTemplate, Map<TileWireTemplate, PIPRouteThrough>> routeThroughMap;
-	/** Templates for each site type in the device */
-	private Map<SiteType, SiteTemplate> siteTemplates;
 	/** Primitive defs in the device for reference */
 	private PrimitiveDefList primitiveDefs;
 	private int numUniqueWireTypes;
@@ -75,8 +70,6 @@ public class Device implements Serializable {
 	//========================================================================//
 	// Objects that are Populated After Parsing
 	//========================================================================//
-	/** Created on demand when user calls getSitesOfTypeMap() */
-	private Map<SiteType, ArrayList<Site>> sitesOfTypeMap;
 	/** Maps the pad bel name to the corresponding package pin */
 	private Map<String, PackagePin> packagePinMap;
 	
@@ -332,54 +325,6 @@ public class Device implements Serializable {
 	}
 
 	/**
-	 * Returns the primitive defs for this device.
-	 *
-	 * @return the primitive defs for this device
-	 */
-	public PrimitiveDefList getPrimitiveDefs() {
-		return primitiveDefs;
-	}
-
-	/**
-	 * Sets the primitive defs for this device.
-	 *
-	 * @param primitiveDefs the primitive defs
-	 */
-	public void setPrimitiveDefs(PrimitiveDefList primitiveDefs) {
-		this.primitiveDefs = primitiveDefs;
-	}
-
-	/**
-	 * Returns the site templates for this device.
-	 * The site templates expose the BELs and routing structure of each
-	 * site type.
-	 *
-	 * @return the site templates for this device
-	 */
-	public Map<SiteType, SiteTemplate> getSiteTemplates() {
-		return siteTemplates;
-	}
-
-	/**
-	 * Returns the site template for the specified site type.
-	 * The site template exposes the BELs and routing structure of the site
-	 * type.
-	 * @param type the site type of the site to get
-	 * @return the site template for the specified site type
-	 */
-	public SiteTemplate getSiteTemplate(SiteType type) {
-		return siteTemplates.get(type);
-	}
-
-	public void setSiteTemplates(Map<SiteType, SiteTemplate> siteTemplates) {
-		this.siteTemplates = siteTemplates;
-	}
-
-	public BelTemplate getBelTemplate(BelId id) {
-		return getSiteTemplate(id.getSiteType()).getBelTemplates().get(id.getName());
-	}
-
-	/**
 	 * A method to get the corresponding site for current in a different tile.
 	 * For example in a Virtex 4, there are 4 slices in a CLB tile, when moving a hard macro
 	 * the current slice must go in the same spot in a new CLB tile
@@ -397,74 +342,26 @@ public class Device implements Serializable {
 			return null;
 		}
 
-		Site[] sites = newSiteTile.getSites();
-		return sites[current.getIndex()];
+		List<Site> sites = newSiteTile.getSites();
+		return sites.get(current.getIndex());
 	}
 
-	/**
-	 * This method will get (create if null) a data structure which stores all
-	 * of the device's sites by type.  To get all of the
-	 * sites of a particular type, use the SiteType.ordinal() method to
-	 * get the representative integer and use that value to index into the
-	 * ArrayList.  This will return an array of all sites of that
-	 * same type.
-	 *
-	 * @return The data structure which stores all of the sites
-	 * separated by type.
-	 */
-	private Map<SiteType, ArrayList<Site>> getSitesOfTypeMap() {
-		if (sitesOfTypeMap == null) {
-			createSitesOfTypeMap();
-		}
-		return sitesOfTypeMap;
-	}
-
-	/**
-	 * This method will return all compatible sites for a particular site type in
-	 * this device.  For example, a SLICEL can be placed at all SLICEL sites and
-	 * all SLICEM sites.  If the type given were SLICEL, this method would return
-	 * a list of all SLICEL and SLICEM sites.
-	 *
-	 * Note -- The list is rebuilt each method call.
-	 *
-	 * @param type the type for which to find compatible sites.
-	 * @return a list of compatible sites suitable for placement of an
-	 * instance of type type.
-	 */
-	public List<Site> getAllCompatibleSites(SiteType type) {
-		// Check if there are sites of the given type
-		List<Site> compatibleList = new ArrayList<>();
-		List<Site> match = getAllSitesOfType(type);
-		if (match != null) {
-			compatibleList.addAll(match);
-		}
-
-		// Check for other compatible site types
-		ArraySet<SiteType> compatibleTypes = getSiteTemplate(type).getCompatibleTypes();
-		if (compatibleTypes != null) {
-			for (SiteType compatibleType : compatibleTypes) {
-				match = getAllSitesOfType(compatibleType);
-				if (match != null) {
-					compatibleList.addAll(match);
-				}
+	public Map<SiteType, Collection<Site>> getCompatibleSitesMap() {
+		Map<SiteType, Collection<Site>> compatMap = new HashMap<>();
+		for (Site site : getSites().values()) {
+			for (SiteType compat : site.getCompatibleTypes()) {
+				compatMap.computeIfAbsent(compat, k -> new ArrayList<>()).add(site);
 			}
 		}
-
-		// If there are no compatible sites, return empty list
-		if (compatibleList.size() == 0) {
-			return Collections.emptyList();
-		}
-		return compatibleList;
+		return compatMap;
 	}
 
-	/**
-	 * Gets and returns an array of all sites of the given site type.
-	 *
-	 * @param type The site type of the site to get.
-	 * @return An array of all sites in the device with site type.
-	 */
-	public List<Site> getAllSitesOfType(SiteType type) {
-		return getSitesOfTypeMap().get(type);
+	public Map<SiteType, Collection<Site>> getSitesOfTypeMap() {
+		Map<SiteType, Collection<Site>> map = new HashMap<>();
+		for (Site site : getSites().values()) {
+			map.computeIfAbsent(site.getDefaultType(), k -> new ArrayList<>()).add(site);
+		}
+		return map;
 	}
 
 	/**
@@ -548,28 +445,6 @@ public class Device implements Serializable {
 		this.columns = tiles[0].length;
 	}
 
-	/**
-	 * This will create a data structure which organizes all sites by types.
-	 * The outer ArrayList uses the SiteType.ordinal() value as the index for
-	 * each type of site.
-	 */
-	private void createSitesOfTypeMap() {
-		Map<SiteType, ArrayList<Site>> tmp = new HashMap<>();
-
-		for (int i = 0; i < this.rows; i++) {
-			for (int j = 0; j < this.columns; j++) {
-				Site[] sites = tiles[i][j].getSites();
-				if (sites == null) continue;
-				for (Site site : sites) {
-					tmp.computeIfAbsent(site.getDefaultType(), k -> new ArrayList<>()).add(site);
-				}
-			}
-		}
-
-		tmp.values().forEach(ArrayList::trimToSize);
-		this.sitesOfTypeMap = tmp;
-	}
-
 	/*
 	 *  Device construction methods
 	 *
@@ -592,80 +467,6 @@ public class Device implements Serializable {
 				for (Site ps : tile.getSites())
 					sites.put(ps.getName(), ps);
 			}
-		}
-	}
-
-	/**
-	 * Builds resources that are fully dependent upon other resources
-	 * provided during the loading and creation process.
-	 * <p>
-	 * Specifically, this method does three things:
-	 *   initializes the site types to their default types
-	 *
-	 */
-	public void constructDependentResources() {
-		setSiteTypes();
-		for (SiteTemplate siteTemplate : siteTemplates.values())
-			siteTemplate.constructDependentResources();
-		constructSiteExternalConnections();
-	}
-
-	/**
-	 * Sets the type of each site to the first type in the
-	 * alternatives list.
-	 */
-	private void setSiteTypes() {
-		for (Site site : sites.values()) {
-			site.setTypeUnchecked(site.getPossibleTypes().get(0));
-		}
-	}
-
-	/*
-	   Builds the wireSites structure for the tiles and the external wire to
-	   pin name map for the sites.  These are built here because they
-	   require the pools to reduce the memory footprint.
-	 */
-	private void constructSiteExternalConnections() {
-		// These pools help to reuse instances to reduce memory
-		HashPool<Map<TileWireTemplate, Integer>> wireSitesPool = new HashPool<>();
-		HashPool<Map<TileWireTemplate, SitePinTemplate>> sitePinMapPool = new HashPool<>();
-		HashPool<Map<SiteType, Map<TileWireTemplate, SitePinTemplate>>> extConnPool = new HashPool<>();
-		for (Tile tile : tileMap.values()) {
-			Map<TileWireTemplate, Integer> wireSites = new HashMap<>();
-			if (tile.getSites() == null)
-				continue;
-
-			for (Site site : tile.getSites()) {
-				Map<SiteType, Map<String, TileWireTemplate>> externalWiresMap = site.getExternalWires();
-				Map<SiteType, Map<TileWireTemplate, SitePinTemplate>> extConns = new HashMap<>();
-
-				for (SiteType siteType : site.getPossibleTypes()) {
-					SiteTemplate siteTemplate = getSiteTemplate(siteType);
-					Map<String, TileWireTemplate> externalWires = externalWiresMap.get(siteType);
-
-					Map<TileWireTemplate, SitePinTemplate> typeExternalConnections = new HashMap<>();
-					for (SitePinTemplate tmplate : siteTemplate.getSinks().values()) {
-						TileWireTemplate externalWire = externalWires.get(tmplate.getName());
-						// Since sitePins are created on request based upon the siteTemplate,
-						// the tile needs to know which site in the tile the wire connects to.
-						// Wiresites contains that information stored as the index of the
-						// site of interest.  Using the index means the wireSites can be used
-						// across similar tiles.
-						wireSites.put(externalWire, site.getIndex());
-						// for the SiteTemplate, contains the mapping of wire to the specific pin
-						typeExternalConnections.put(externalWire, tmplate);
-					}
-					for (SitePinTemplate tmplate : siteTemplate.getSources().values()) {
-						TileWireTemplate externalWire = externalWires.get(tmplate.getName());
-						wireSites.put(externalWire, site.getIndex());
-						typeExternalConnections.put(externalWire, tmplate);
-					}
-					extConns.put(siteType, sitePinMapPool.add(typeExternalConnections));
-				}
-				site.setExternalWireToPinMap(extConnPool.add(extConns));
-			}
-
-			tile.setWireSites(wireSitesPool.add(wireSites));
 		}
 	}
 
@@ -706,15 +507,10 @@ public class Device implements Serializable {
 				}
 			}
 			device.routeThroughMap = routeThroughMap;
-			device.siteTemplates = new HashMap<>();
-			for (SiteTemplate template : siteTemplates) {
-				device.siteTemplates.put(template.getType(), template);
-			}
 			device.primitiveDefs = primitiveDefs;
 			device.numUniqueWireTypes = (numUniqueWireTypes != null) ? numUniqueWireTypes : -1;
 
 			device.constructTileMap();
-			device.constructDependentResources();
 			device.packagePinMap = packagePinMap;
 		}
 
@@ -741,7 +537,6 @@ public class Device implements Serializable {
 		repl.family = family;
 		repl.tiles = tiles;
 		repl.routeThroughMap = routeThroughMap;
-		repl.siteTemplates = siteTemplates.values();
 		repl.primitiveDefs = primitiveDefs;
 		repl.packagePinMap = packagePinMap;
 		repl.numUniqueWireTypes = numUniqueWireTypes;

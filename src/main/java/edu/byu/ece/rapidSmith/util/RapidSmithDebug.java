@@ -28,7 +28,7 @@ import edu.byu.ece.rapidSmith.design.subsite.Cell;
 import edu.byu.ece.rapidSmith.design.subsite.CellNet;
 import edu.byu.ece.rapidSmith.design.subsite.CellPin;
 import edu.byu.ece.rapidSmith.design.subsite.RouteTree;
-import edu.byu.ece.rapidSmith.device.Wire;
+import edu.byu.ece.rapidSmith.device.*;
 
 /**
  * This class is for general purpose debug methods that users <br>
@@ -50,27 +50,58 @@ public final class RapidSmithDebug {
 	 * @param rt RouteTree to print
 	 */
 	public static void printRouteTree(RouteTree rt) {
-		printRouteTree(rt, 0);
+		Node n = rt.getNode();
+
+		{
+			SitePin pin = n.getReverseConnectedPin();
+			if (pin != null) {
+				if (n instanceof TileNode) {
+					TileWire wire = pin.getExternalWire();
+					System.out.println("--> " + wire.getTile() + wire.getName() + "(" + pin.getSite() + "/" + pin.getName() + ")");
+				} else {
+					SiteWire wire = pin.getInternalWire();
+					System.out.println("--> " + wire.getSite() + wire.getName() + "(" + pin.getSite() + "/" + pin.getName() + ")");
+				}
+			}
+		}
+		{
+			BelPin pin = n.getSource();
+			if (pin != null) {
+				SiteWire wire = pin.getWire();
+				System.out.println("--> " + wire.getSite() + wire.getName() + "(" + pin.getBel() + "/" + pin.getName() + ")");
+			}
+		}
+
+		printRouteTree(rt, "  ");
 	}
 	
 	/*
 	 * Recursive method to print a RouteTree data structure
 	 */
-	private static void printRouteTree(RouteTree rt, int level) {
-		Wire w = rt.getWire();
-		System.out.print(w.getTile() + "/" + w.getName());
-		
-		if (w.getConnectedPin() != null) {
-			System.out.print(" (SitePin)");
-		} 
-		else if (w.getTerminal() != null) {
-			System.out.print(" (BelPin)");
-		}
-		System.out.println("--> " + level);
-		
-		level++;
+	private static void printRouteTree(RouteTree rt, String level) {
+		Node n = rt.getNode();
+
+		{SitePin pin = n.getConnectedPin();
+		if (pin != null) {
+			TileWire wire = pin.getExternalWire();
+			System.out.println("--> " + level + wire.getTile() + wire.getName() + "(" + pin.getSite() + "/" + pin.getName() + ")");
+		}}
+		{BelPin pin = n.getTerminal();
+		if (pin != null) {
+			SiteWire wire = pin.getWire();
+			System.out.println("--> " + level + wire.getSite() + wire.getName() + "(" + pin.getBel() + "/" + pin.getName() + ")");
+		}}
+
+		{Connection c = rt.getConnection();
+		if (c != null) {
+			Wire sourceWire = c.getSourceWire();
+			Wire sinkWire = c.getSinkWire();
+			System.out.print("--> " + level + " " + sourceWire.getTile() + " " + sourceWire.getName());
+			System.out.print(" -> " + sinkWire.getName());
+		}}
+
 		for(RouteTree r: rt.getSinkTrees()) {
-			printRouteTree(r, level);
+			printRouteTree(r, level + " ");
 		}
 	}
 	

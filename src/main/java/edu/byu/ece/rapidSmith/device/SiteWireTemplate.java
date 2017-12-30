@@ -19,9 +19,9 @@
  */
 package edu.byu.ece.rapidSmith.device;
 
-import edu.byu.ece.rapidSmith.WireTemplate;
+import edu.byu.ece.rapidSmith.util.Ordinable;
 
-public class SiteWireTemplate extends WireTemplate {
+public class SiteWireTemplate implements Ordinable<SiteWireTemplate> {
 	private static final long serialVersionUID = -6449376134678028074L;
 	private final String name;
 	private final SiteType siteType;
@@ -33,7 +33,6 @@ public class SiteWireTemplate extends WireTemplate {
 		this.ordinal = ordinal;
 	}
 
-	@Override
 	public String getName() {
 		return name;
 	}
@@ -43,7 +42,7 @@ public class SiteWireTemplate extends WireTemplate {
 	}
 
 	@Override
-	public int ordinal() {
+	public int getOrdinal() {
 		return ordinal;
 	}
 
@@ -58,5 +57,10 @@ public class SiteWireTemplate extends WireTemplate {
 	@Override
 	public int hashCode() {
 		return ordinal;
+	}
+
+	@Override
+	public int compareTo(SiteWireTemplate other) {
+		return ordinal - other.ordinal;
 	}
 }

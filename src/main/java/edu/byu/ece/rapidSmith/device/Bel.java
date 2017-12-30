@@ -21,9 +21,9 @@
 package edu.byu.ece.rapidSmith.device;
 
 import java.io.Serializable;
-import java.lang.ref.SoftReference;
-import java.util.*;
-import java.util.stream.Stream;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  *  Class representing the Basic Elements of Logic.  BELs are the most basic
@@ -40,14 +40,6 @@ public final class Bel implements Serializable {
 	private BelTemplate template;
 	// The site the BEL exists in
 	private Site site;
-
-	// BelPins all have to be uniquely created for each BEL.  While most BELs do
-	// not have many pins, I don't want to be constantly recreating these pin
-	// objects so we'll create a cache to store the pins.  Use a soft reference
-	// to allow freeing the BelPins if they're not actively being used to reduce
-	// the memory footprint.
-	private transient SoftReference<Map<String, BelPin>> sources;
-	private transient SoftReference<Map<String, BelPin>> sinks;
 
 	/**
 	 * Creates a new BEL in the given site backed by the given template.
@@ -114,115 +106,45 @@ public final class Bel implements Serializable {
 	 *   name exists on this BEL.
 	 */
 	public BelPin getBelPin(String pinName) {
-		// Since we don't know whether the pin is a source or sink of this BEL, we
-		// need to check both to locate it.
+		BelPinTemplate bpt = template.getPinNamesMap().get(pinName);
+		if (bpt == null) return null;
+		return new BelPin(this, bpt);
+	}
 
-		// First check if it exists in the source pins cache to avoid duplicating it.
-		Map<String, BelPin> sourcePins = (sources == null) ? null : sources.get();
-		if (sourcePins != null) {
-			BelPin pin = sourcePins.get(pinName);
-			if (pin != null)
-				return pin;
-		}
-		// Check if the pin is a source, and if so, create a new BelPin object
-		// and return it.
-		BelPinTemplate sourceTemplate = template.getSources().get(pinName);
-		if (sourceTemplate != null)
-			return new BelPin(this, sourceTemplate);
-
-		// It's not a source pin, now do the same checks to see if it's a sink pin
-		Map<String, BelPin> sinkPins = (sinks == null) ? null : sinks.get();
-		if (sinkPins != null) {
-			BelPin pin = sinkPins.get(pinName);
-			if (pin != null)
-				return pin;
-		}
-		BelPinTemplate sinkTemplate = template.getSinks().get(pinName);
-		if (sinkTemplate != null)
-			return new BelPin(this, sinkTemplate);
-
-		// No pins of this name exist on this BEL.  Return null.
-		return null;
+	BelPin getPin(int index) {
+		BelPinTemplate bpt = template.getPinTemplates().get(index);
+		assert bpt != null;
+		return new BelPin(this, bpt);
 	}
 
 	/**
 	 * Return the source pins of this BEL.
-	 * <p>
-	 * The source pin objects are created dynamically upon the first call of this
-	 * method.  The pins are stored in a soft reference based cache.
 	 *
 	 * @return a collection containing the source pins of this BEL
 	 */
 	public Collection<BelPin> getSources() {
-		// Check if the cache is valid, if not create it.
-		Map<String, BelPin> sourcePins = (sources == null) ? null : sources.get();
-		if (sourcePins == null) {
-			sourcePins = buildSources();
-		}
-		return sourcePins.values();
-	}
-
-	private Map<String, BelPin> buildSources() {
-		// Build the source pins and store the structure in a cache.
-		Map<String, BelPin> sourcePins = new HashMap<>(template.getSources().size());
-		for (BelPinTemplate belPinTemplate : template.getSources().values()) {
-			sourcePins.put(belPinTemplate.getName(), new BelPin(this, belPinTemplate));
-		}
-		sources = new SoftReference<>(sourcePins);
-		return sourcePins;
+		return template.getPinTemplates().stream()
+			.filter(it -> it.getDirection() != PinDirection.OUT)
+			.map(it -> new BelPin(this, it))
+			.collect(Collectors.toList());
 	}
 
 	/**
 	 * Return the sink pins of this BEL.
-	 * <p>
-	 * The sink pin objects are created dynamically upon the first call of this
-	 * method.  The pins are stored in a soft reference based cache.
 	 *
 	 * @return a collection containing the sink pins of this BEL
 	 */
 	public Collection<BelPin> getSinks() {
-		// Check if the cache is valid, if not create it.
-		Map<String, BelPin> sinkPins = (sinks == null) ? null : sinks.get();
-		if (sinkPins == null) {
-			sinkPins = buildSinks();
-		}
-		return sinkPins.values();
+		return template.getPinTemplates().stream()
+			.filter(it -> it.getDirection() != PinDirection.IN)
+			.map(it -> new BelPin(this, it))
+			.collect(Collectors.toList());
 	}
 
-	public Stream<BelPin> getBelPins() {
-		return Stream.concat(getSources().stream(), getSinks().stream()).distinct();
-	}
-
-	private Map<String, BelPin> buildSinks() {
-		// Build the sink pins and store the structure in the cache.
-		Map<String, BelPin> sinkPins = new HashMap<>(template.getSinks().size());
-		for (BelPinTemplate belPinTemplate : template.getSinks().values()) {
-			sinkPins.put(belPinTemplate.getName(), new BelPin(this, belPinTemplate));
-		}
-		sinks = new SoftReference<>(sinkPins);
-		return sinkPins;
-	}
-
-	/**
-	 * Returns the wire the pin of the specified name connects to.
-	 * <p>
-	 * This method bypasses the creation of a BelPin object so it should be faster.
-	 *
-	 * @param pinName the name of the pin
-	 * @return the wire the pin of the specified name connects to or null if no pin
-	 *   of the name exists on the BEL
-	 */
-	public SiteWire getWireOfPin(String pinName) {
-		// Check both the sources and sinks structures to find the pin.
-		if (template.getSources().containsKey(pinName)) {
-			SiteWireTemplate wireTemplate = template.getSources().get(pinName).getWire();
-			return new SiteWire(this.getSite(), wireTemplate);
-		}
-		if (template.getSinks().containsKey(pinName)) {
-			SiteWireTemplate wireTemplate = template.getSinks().get(pinName).getWire();
-			return new SiteWire(this.getSite(), wireTemplate);
-		}
-		return null;
+	public Collection<BelPin> getBelPins() {
+		return template.getPinTemplates().stream()
+			.map(it -> new BelPin(this, it))
+			.collect(Collectors.toList());
 	}
 
 	@Override

@@ -22,6 +22,9 @@ package edu.byu.ece.rapidSmith.device;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
 
 /**
  *  A template that backs BELs of each BEL id in the device.
@@ -33,8 +36,8 @@ public final class BelTemplate implements Serializable {
 	// Type of the BEL, not a part of XDLRC
 	private final String type;
 	// BelPinTemplates for each pin on the BEL
-	private Map<String, BelPinTemplate> sources = new HashMap<>();
-	private Map<String, BelPinTemplate> sinks = new HashMap<>();
+	private List<BelPinTemplate> pinTemplates;
+	private transient Map<String, BelPinTemplate> pinNamesMap;
 
 	public BelTemplate(BelId id, String type) {
 		this.id = id;
@@ -49,27 +52,17 @@ public final class BelTemplate implements Serializable {
 		return type;
 	}
 
-	public Map<String, BelPinTemplate> getSources() {
-		return sources;
+	public List<BelPinTemplate> getPinTemplates() {
+		return pinTemplates;
 	}
 
-	public void setSources(Map<String, BelPinTemplate> sources) {
-		this.sources = sources;
+	public Map<String, BelPinTemplate> getPinNamesMap() {
+		return pinNamesMap;
 	}
 
-	public Map<String, BelPinTemplate> getSinks() {
-		return sinks;
-	}
-
-	public void setSinks(Map<String, BelPinTemplate> sinks) {
-		this.sinks = sinks;
-	}
-
-	public BelPinTemplate getPinTemplate(String pinName) {
-		BelPinTemplate template = sources.get(pinName);
-		if (template != null)
-			return template;
-		return sinks.get(pinName);
+	public void setPinTemplates(List<BelPinTemplate> pinTemplates) {
+		this.pinTemplates = pinTemplates;
+		this.pinNamesMap = pinTemplates.stream().collect(toMap(k -> k.getName(), k -> k));
 	}
 
 	@Override

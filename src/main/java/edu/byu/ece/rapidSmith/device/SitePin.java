@@ -37,13 +37,10 @@ public final class SitePin implements Serializable {
 	private final Site site;
 	// The template that describes this pin
 	private final SitePinTemplate template;
-	// the tile wire that connects to this pin
-	private final TileWireTemplate externalWire;
 
-	SitePin(Site site, SitePinTemplate template, TileWireTemplate externalWire) {
+	SitePin(Site site, SitePinTemplate template) {
 		this.site = site;
 		this.template = template;
-		this.externalWire = externalWire;
 	}
 
 	/**
@@ -86,7 +83,13 @@ public final class SitePin implements Serializable {
 	 * @return the tile wire that connects to this pin
 	 */
 	public TileWire getExternalWire() {
-		return new TileWire(getSite().getTile(), externalWire);
+		Tile tile = getSite().getTile();
+		TileWireTemplate extWire = tile.getPinwire(template.getSiteType(), site.getIndex(), template.getIndex());
+		return new TileWire(getSite().getTile(), extWire);
+	}
+
+	public TileNode getExternalNode() {
+		return getExternalWire().getNode();
 	}
 
 	/**
@@ -95,6 +98,10 @@ public final class SitePin implements Serializable {
 	 */
 	public SiteWire getInternalWire() {
 		return new SiteWire(getSite(), template.getInternalWire());
+	}
+
+	public SiteNode getInternalNode() {
+		return getInternalWire().getNode();
 	}
 
 	/**

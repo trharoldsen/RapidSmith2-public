@@ -24,6 +24,10 @@ import edu.byu.ece.rapidSmith.util.ArraySet;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 
 /**
  *  Template to back sites that contains information common to
@@ -33,26 +37,21 @@ public final class SiteTemplate implements Serializable {
 	private static final long serialVersionUID = -899254253693716120L;
 	// The type of this site template
 	private SiteType type;
-	// The templates for the BELs in this site template
-	private Map<String, BelTemplate> belTemplates;
 	// Site types that can be placed on sites of this type
-	private ArraySet<SiteType> compatibleTypes;
+	private Set<SiteType> compatibleTypes;
+
 	// The intrasite routing graph structure
-	private WireHashMap<SiteWireTemplate> routing;
-	private WireHashMap<SiteWireTemplate> reverseWireConnections;
-	// Map of pin names to pin templates for the source pins
-	private Map<String, SitePinTemplate> sources;
-	// Map of pin names to pin templates for the sink pins
-	private Map<String, SitePinTemplate> sinks;
-	// Map of site wires to the pin templates the wires connect to
-	private transient Map<SiteWireTemplate, SitePinTemplate> internalWireToSitePinMap;
-	// Map of the site wires to the bel pin templates the wire connect to
-	private transient Map<SiteWireTemplate, BelPinTemplate> belPins;
-	// Map containing the bel routethrough information of the site
-	private Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughMap;
-	// Map of the wires in the site to their templates
+	private Map<SiteWireTemplate, SiteNodeTemplate> wireNodesMap;
 	private Map<String, SiteWireTemplate> siteWires;
 
+	private List<BelTemplate> belTemplates;
+	private Map<String, BelTemplate> belNamesMap;
+
+	private List<SitePinTemplate> pinTemplates;
+	private Map<String, SitePinTemplate> pinNamesMap;
+
+	// Map containing the bel routethrough information of the site
+	private Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughMap;
 
 	public SiteType getType() {
 		return type;
@@ -62,15 +61,32 @@ public final class SiteTemplate implements Serializable {
 		this.type = type;
 	}
 
-	public Map<String, BelTemplate> getBelTemplates() {
+	public List<BelTemplate> getBelTemplates() {
 		return belTemplates;
 	}
 
-	public void setBelTemplates(Map<String, BelTemplate> belTemplates) {
-		this.belTemplates = belTemplates;
+	public Map<String, BelTemplate> getBelNamesMap() {
+		return belNamesMap;
 	}
 
-	public ArraySet<SiteType> getCompatibleTypes() {
+	public void setBelTemplates(List<BelTemplate> belTemplates) {
+		this.belTemplates = belTemplates;
+		switch (belTemplates.size()) {
+			case 0:
+				this.belNamesMap = emptyMap();
+				break;
+			case 1:
+				BelTemplate first = belTemplates.get(0);
+				this.belNamesMap = singletonMap(first.getId().getName(), first);
+				break;
+			case 2:
+				this.belNamesMap = belTemplates.stream()
+					.collect(Collectors.toMap(k -> k.getId().getName(), k -> k));
+				break;
+		}
+	}
+
+	public Set<SiteType> getCompatibleTypes() {
 		return compatibleTypes;
 	}
 
@@ -78,44 +94,37 @@ public final class SiteTemplate implements Serializable {
 		this.compatibleTypes = compatibleTypes;
 	}
 
-	public WireHashMap<SiteWireTemplate> getRouting() {
-		return routing;
+	public Map<SiteWireTemplate, SiteNodeTemplate> getWireNodesMap() {
+		return wireNodesMap;
 	}
 
-	public void setRouting(WireHashMap<SiteWireTemplate> routing) {
-		this.routing = routing;
+	public void setWireNodesMap(Map<SiteWireTemplate, SiteNodeTemplate> wireNodesMap) {
+		this.wireNodesMap = wireNodesMap;
 	}
 
-	public ArraySet<WireConnection<SiteWireTemplate>> getWireConnections(SiteWireTemplate wire) {
-		return routing.get(wire);
+	public List<SitePinTemplate> getPinTemplates() {
+		return pinTemplates;
 	}
 
-	public Map<String, SitePinTemplate> getSources() {
-		return sources;
+	public Map<String, SitePinTemplate> getPinNamesMap() {
+		return pinNamesMap;
 	}
 
-	public void setSources(Map<String, SitePinTemplate> sources) {
-		this.sources = sources;
-	}
-
-	public Map<String, SitePinTemplate> getSinks() {
-		return sinks;
-	}
-
-	public void setSinks(Map<String, SitePinTemplate> sinks) {
-		this.sinks = sinks;
-	}
-
-	public Map<SiteWireTemplate, SitePinTemplate> getInternalWireToSitePinMap() {
-		return internalWireToSitePinMap;
-	}
-
-	public Map<SiteWireTemplate, BelPinTemplate> getBelPins() {
-		return belPins;
-	}
-
-	public void setBelPins(Map<SiteWireTemplate, BelPinTemplate> belPins) {
-		this.belPins = belPins;
+	public void setPinTemplates(List<SitePinTemplate> pinTemplates) {
+		this.pinTemplates = pinTemplates;
+		switch (pinTemplates.size()) {
+			case 0:
+				this.pinNamesMap = emptyMap();
+				break;
+			case 1:
+				SitePinTemplate first = pinTemplates.get(0);
+				this.pinNamesMap = singletonMap(first.getName(), first);
+				break;
+			case 2:
+				this.pinNamesMap = pinTemplates.stream()
+					.collect(Collectors.toMap(k -> k.getName(), k -> k));
+				break;
+		}
 	}
 
 	public Map<String, SiteWireTemplate> getSiteWires() {
@@ -126,30 +135,12 @@ public final class SiteTemplate implements Serializable {
 		this.siteWires = siteWires;
 	}
 
-	/**
-	 * @deprecated Use {@link #setInternalWireToSitePinMap} instead.
-	 */
-	@Deprecated
-	public void setInternalSiteWireMap(Map<SiteWireTemplate, SitePinTemplate> internalWireToSitePinMap) {
-		setInternalWireToSitePinMap(internalWireToSitePinMap);
-	}
-	
-	public void setInternalWireToSitePinMap(Map<SiteWireTemplate, SitePinTemplate> internalWireToSitePinMap) {
-		this.internalWireToSitePinMap = internalWireToSitePinMap;
+	public Map<SiteWireTemplate, Set<SiteWireTemplate>> getBelRoutethroughMap() {
+		return belRoutethroughMap;
 	}
 
 	public void setBelRoutethroughs(Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughs) {
 		this.belRoutethroughMap = belRoutethroughs;
-	}
-
-	public boolean isRoutethrough(SiteWireTemplate startWire, SiteWireTemplate endWire) {
-
-		if (belRoutethroughMap == null) {
-			return false;
-		}
-
-		Set<SiteWireTemplate> sinks = belRoutethroughMap.get(startWire);
-		return sinks != null && sinks.contains(endWire);
 	}
 
 	@Override
@@ -159,91 +150,33 @@ public final class SiteTemplate implements Serializable {
 				'}';
 	}
 
-	// Builds fast lookup structures for data that is already provided in a
-	// different structure
-	void constructDependentResources() {
-		// Create the internal site wire map by grabbing the internal wires
-		// for both the source and sink pins
-		internalWireToSitePinMap = new HashMap<>();
-		for (SitePinTemplate sitePin : sources.values()) {
-			internalWireToSitePinMap.put(sitePin.getInternalWire(), sitePin);
-		}
-		for (SitePinTemplate sitePin : sinks.values()) {
-			internalWireToSitePinMap.put(sitePin.getInternalWire(), sitePin);
-		}
-
-		// Create the wire to bel pin maps by inferringthe information from the
-		// bel pin templates
-		belPins = new HashMap<>();
-		for (BelTemplate belTemplate : belTemplates.values()) {
-			for (BelPinTemplate belPin : belTemplate.getSources().values()) {
-				belPins.put(belPin.getWire(), belPin);
-			}
-			for (BelPinTemplate belPin : belTemplate.getSinks().values()) {
-				belPins.put(belPin.getWire(), belPin);
-			}
-		}
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		SiteTemplate other = (SiteTemplate) o;
+		return type == other.type;
 	}
 
-	// Convenience method to search both source and sink site pins
-	public SitePinTemplate getSitePin(String name) {
-		if (sources.containsKey(name))
-			return sources.get(name);
-		if (sinks.containsKey(name))
-			return sinks.get(name);
-		return null;
-	}
-
-	public void setReverseWireConnections(WireHashMap<SiteWireTemplate> reverseWireConnections) {
-		this.reverseWireConnections = reverseWireConnections;
-	}
-
-	public ArraySet<WireConnection<SiteWireTemplate>> getReverseWireConnections(SiteWireTemplate wire) {
-		return reverseWireConnections.get(wire);
-	}
-
-	public WireHashMap<SiteWireTemplate> getReversedWireHashMap() {
-		return reverseWireConnections;
+	@Override
+	public int hashCode() {
+		return type.hashCode();
 	}
 
 	// for hessian compression
 	private static class SiteTemplateReplace implements Serializable  {
 		private static final long serialVersionUID = 5457581694407570610L;
 		private SiteType type;
-		private Collection<BelTemplate> belTemplates;
-		private ArraySet<SiteType> compatibleTypes;
-		private WireHashMap<SiteWireTemplate> routing;
-		private WireHashMap<SiteWireTemplate> reverseWireConnections;
-		private Collection<SitePinTemplate> sources;
-		private Collection<SitePinTemplate> sinks;
+		private List<BelTemplate> belTemplates;
+		private Set<SiteType> compatibleTypes;
 		private Map<SiteWireTemplate, Set<SiteWireTemplate>> belRoutethroughMap;
 		private Map<String, SiteWireTemplate> siteWires;
 
 		public Object readResolve() {
 			SiteTemplate template = new SiteTemplate();
 			template.type = type;
-			if (belTemplates != null) {
-				template.belTemplates = new HashMap<>();
-				for (BelTemplate belTemplate : belTemplates) {
-					template.belTemplates.put(belTemplate.getId().getName(), belTemplate);
-				}
-			}
+			template.setBelTemplates(belTemplates);
 			template.compatibleTypes = compatibleTypes;
-			template.routing = routing;
-			template.reverseWireConnections = reverseWireConnections;
-			if (sources != null) {
-				template.sources = new HashMap<>();
-				for (SitePinTemplate pin : sources) {
-					template.sources.put(pin.getName(), pin);
-				}
-			}
-
-			if (sinks != null) {
-				template.sinks = new HashMap<>();
-				for (SitePinTemplate pin : sinks) {
-					template.sinks.put(pin.getName(), pin);
-				}
-			}
 			template.belRoutethroughMap = belRoutethroughMap;
 			template.siteWires = siteWires;
 
@@ -254,28 +187,11 @@ public final class SiteTemplate implements Serializable {
 	public SiteTemplateReplace writeReplace() {
 		SiteTemplateReplace repl = new SiteTemplateReplace();
 		repl.type = type;
-		repl.belTemplates = belTemplates.values();
+		repl.belTemplates = belTemplates;
 		repl.compatibleTypes = compatibleTypes;
-		repl.routing = routing;
-		repl.reverseWireConnections = reverseWireConnections; 
-		repl.sources = sources.values();
-		repl.sinks = sinks.values();
 		repl.belRoutethroughMap = belRoutethroughMap;
 		repl.siteWires = siteWires;
 
 		return repl;
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		SiteTemplate template = (SiteTemplate) o;
-		return Objects.equals(type, template.type);
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(type);
 	}
 }

@@ -85,15 +85,13 @@ public class FamilyBuilders {
 			Device device = env.getDevice(p);
 			for (Tile tile : device.getTileMap().values()) {
 				familyInfoData.tileTypes.add(tile.getType().name());
-				Site[] sites = tile.getSites();
-				if (sites != null) {
-					for (Site site : sites) {
-						familyInfoData.siteTypes.add(site.getDefaultType().name());
-						List<SiteType> possibleTypes = site.getPossibleTypes();
-						if (possibleTypes != null) {
-							for (SiteType siteType : possibleTypes) {
-								familyInfoData.siteTypes.add(siteType.name());
-							}
+				List<Site> sites = tile.getSites();
+				for (Site site : sites) {
+					familyInfoData.siteTypes.add(site.getDefaultType().name());
+					List<SiteType> possibleTypes = site.getPossibleTypes();
+					if (possibleTypes != null) {
+						for (SiteType siteType : possibleTypes) {
+							familyInfoData.siteTypes.add(siteType.name());
 						}
 					}
 				}

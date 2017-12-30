@@ -20,16 +20,7 @@
 
 package edu.byu.ece.rapidSmith.device;
 
-import edu.byu.ece.rapidSmith.device.Connection.SiteToTileConnection;
-import edu.byu.ece.rapidSmith.device.Connection.SiteWireConnection;
-import edu.byu.ece.rapidSmith.util.ArraySet;
-
 import java.io.Serializable;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singleton;
 
 /**
  *
@@ -74,118 +65,8 @@ public class SiteWire implements Wire, Serializable {
 	}
 
 	@Override
-	public int ordinal() {
-		return template.ordinal();
-	}
-
-	@Override
-	public Collection<Connection> getWireConnections() {
-		ArraySet<WireConnection<SiteWireTemplate>> wcs = site.getWireConnections(template);
-		if (wcs == null)
-			return Collections.emptyList();
-
-		return wcs.stream()
-				.map(wc -> new SiteWireConnection(this, wc))
-				.collect(Collectors.toList());
-	}
-	
-	@SuppressWarnings("unchecked")
-	public ArraySet<WireConnection<SiteWireTemplate>> getWireConnectionsSet() {
-		return site.getWireConnections(template);
-	}
-
-	@Override
-	public Collection<Connection> getPinConnections() {
-		SitePin pin = getConnectedPin();
-		if (pin == null)
-			return emptyList();
-		Connection c = new SiteToTileConnection(pin);
-		return singleton(c);
-	}
-
-	@Override
-	public Collection<SitePin> getAllConnectedPins() {
-		return singleton(getConnectedPin());
-	}
-
-	@Override
-	public SitePin getConnectedPin() {
-		SitePin sitePin = site.getSitePinOfInternalWire(template);
-		if (sitePin == null || !sitePin.isOutput())
-			return null;
-		return sitePin;
-	}
-
-	@Override
-	public Collection<Connection> getTerminals() {
-		BelPin pin = getTerminal();
-		if (pin == null)
-			return emptyList();
-		Connection c = new Connection.Terminal(pin);
-		return singleton(c);
-	}
-
-	@Override
-	public BelPin getTerminal() {
-		BelPin belPin = site.getBelPinOfWire(template);
-		if (belPin == null || !belPin.isInput())
-			return null;
-		return belPin;
-	}
-
-	@Override
-	public Collection<Connection> getReverseWireConnections() {
-		ArraySet<WireConnection<SiteWireTemplate>> wcs = site.getReverseConnections(template);
-		if (wcs == null)
-			return Collections.emptyList();
-
-		return wcs.stream()
-			.map(wc -> new SiteWireConnection(this, wc))
-			.collect(Collectors.toList());
-	}
-	
-	@SuppressWarnings("unchecked")
-	public ArraySet<WireConnection<SiteWireTemplate>> getReverseWireConnectionsSet() {
-		return site.getReverseConnections(template);
-	}
-
-	@Override
-	public Collection<SitePin> getAllReverseSitePins() {
-		return singleton(getReverseConnectedPin());
-	}
-
-	@Override
-	public Collection<Connection> getReversePinConnections() {
-		SitePin pin = getReverseConnectedPin();
-		if (pin == null)
-			return emptyList();
-		Connection c = new SiteToTileConnection(pin);
-		return singleton(c);
-	}
-
-	@Override
-	public SitePin getReverseConnectedPin() {
-		SitePin sitePin = site.getSitePinOfInternalWire(template);
-		if (sitePin == null || !sitePin.isInput())
-			return null;
-		return sitePin;
-	}
-
-	@Override
-	public Collection<Connection> getSources() {
-		BelPin pin = getSource();
-		if (pin == null)
-			return emptyList();
-		Connection c = new Connection.Terminal(pin);
-		return singleton(c);
-	}
-
-	@Override
-	public BelPin getSource() {
-		BelPin belPin = site.getBelPinOfWire(template);
-		if (belPin == null || !belPin.isOutput())
-			return null;
-		return belPin;
+	public SiteNode getNode() {
+		return new SiteNode(getSite(), getSite().getNodeOfWire(template));
 	}
 
 	@Override

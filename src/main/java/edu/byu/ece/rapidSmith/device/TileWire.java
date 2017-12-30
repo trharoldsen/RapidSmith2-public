@@ -20,18 +20,7 @@
 
 package edu.byu.ece.rapidSmith.device;
 
-import edu.byu.ece.rapidSmith.device.Connection.ReverseTileWireConnection;
-import edu.byu.ece.rapidSmith.device.Connection.TileToSiteConnection;
-import edu.byu.ece.rapidSmith.device.Connection.TileWireConnection;
-import edu.byu.ece.rapidSmith.util.ArraySet;
-
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singleton;
 
 /**
  * A wire inside a tile but outside a site.  This is part of the general
@@ -67,8 +56,11 @@ public class TileWire implements Wire, Serializable {
 	}
 
 	@Override
-	public int ordinal() {
-		return template.ordinal();
+	public TileNode getNode() {
+		int rootRow = tile.getRow() - template.getNodeOffset().getRows();
+		int rootCol = tile.getColumn() - template.getNodeOffset().getColumns();
+		Tile root = tile.getDevice().getTile(rootRow, rootCol);
+		return new TileNode(root, tile.getNodeOfWire(template));
 	}
 
 	/**
@@ -81,130 +73,6 @@ public class TileWire implements Wire, Serializable {
 
 	public TileWireTemplate getTemplate() {
 		return template;
-	}
-
-	/**
-	 * Returns all sink connections within and between tiles.
-	 */
-	@Override
-	public Collection<Connection> getWireConnections() {
-		ArraySet<WireConnection<TileWireTemplate>> wireConnections = tile.getWireConnections(template);
-		if (wireConnections == null)
-			return Collections.emptyList();
-		
-		return wireConnections.stream()
-				.map(wc -> new TileWireConnection(this, wc))
-				.collect(Collectors.toList());
-	}
-	
-	@Override
-	public Collection<SitePin> getAllConnectedPins() {
-		Collection<SitePin> sitePins = tile.getSitePinsOfWire(this.template);
-		return sitePins.stream().filter(it -> !it.isInput())
-			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Returns all connections into primitive sites this wire drives.
-	 */
-	@Override
-	@Deprecated
-	public Collection<Connection> getPinConnections() {
-		SitePin sitePin = getConnectedPin();
-		if (sitePin == null)
-			return emptyList();
-		Connection c = new TileToSiteConnection(sitePin);
-		return singleton(c);
-	}
-
-	/**
-	 * Returns the connection into a primitive site that this wire drives.
-	 */
-	@Override
-	public SitePin getConnectedPin() {
-		SitePin sitePin = tile.getSitePinOfWire(this.template);
-		if (sitePin == null || !sitePin.isInput())
-			return null;
-		return sitePin;
-	}
-
-	/**
-	 * Always return an empty list.
-	 */
-	@Override
-	@Deprecated
-	public Collection<Connection> getTerminals() {
-		return Collections.emptyList();
-	}
-
-	/**
-	 * Always returns null.
-	 */
-	@Override
-	public BelPin getTerminal() {
-		return null;
-	}
-
-	/**
-	 * Returns connection to all connections within or between tiles which drive
-	 * this wire.
-	 */
-	@Override
-	public Collection<Connection> getReverseWireConnections() {
-		ArraySet<WireConnection<TileWireTemplate>> wireConnections = tile.getReverseConnections(template);
-		if (wireConnections == null)
-			return Collections.emptyList();
-
-		return wireConnections.stream()
-				.map(wc -> new ReverseTileWireConnection(this, wc))
-				.collect(Collectors.toList());
-	}
-	
-	@Override
-	public Collection<SitePin> getAllReverseSitePins() {
-		Collection<SitePin> sitePins = tile.getSitePinsOfWire(this.template);
-		return sitePins.stream().filter(it -> !it.isOutput())
-			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Returns all site pin connections driving this wire.
-	 */
-	@Override
-	@Deprecated
-	public Collection<Connection> getReversePinConnections() {
-		SitePin sitePin = getReverseConnectedPin();
-		if (sitePin == null)
-			return emptyList();
-		return singleton(new TileToSiteConnection(sitePin));
-	}
-
-	/**
-	 * Returns the site pin connection driving this wire.
-	 */
-	@Override
-	public SitePin getReverseConnectedPin() {
-		SitePin sitePin = tile.getSitePinOfWire(this.template);
-		if (sitePin == null || !sitePin.isOutput())
-			return null;
-		return sitePin;
-	}
-
-	/**
-	 * Always returns an empty list.
-	 */
-	@Override
-	@Deprecated
-	public Collection<Connection> getSources() {
-		return Collections.emptyList();
-	}
-
-	/**
-	 * Always returns null.
-	 */
-	@Override
-	public BelPin getSource() {
-		return null;
 	}
 
 	/**

@@ -57,13 +57,12 @@ public class BrowseDevice{
 
 						System.out.println("Enter wire name: ");
 						String wire = br.readLine().trim();
-						Collection<Connection> wires = t.getWire(wire).getWireConnections();
-						if(wires != null){
-							for(Connection w : wires){
+						Collection<Connection> wires = t.getWire(wire).getNode().getWireConnections();
+						if (!wires.isEmpty()) {
+							for (Connection w : wires) {
 								System.out.println("  " + w.toString());
 							}
-						}
-						else{
+						} else {
 							System.out.println(" No Connections");
 						}
 						break;
@@ -89,15 +88,13 @@ public class BrowseDevice{
 						Wire startWire = t.getWire(br.readLine().trim());
 						
 						while(true){
-							if(t.getWireHashMap() == null){
-								System.out.println("This tile has no wires.");
-								break;
-							}
-							if(startWire.getWireConnections().isEmpty()){
+							Node startNode = startWire.getNode();
+							Collection<Connection> wcs = startNode.getWireConnections();
+							if(wcs.isEmpty()){
 								System.out.println("This wire has no connections, it may be a sink");
 								break;
 							}
-							List<Connection> wireConnections = new ArrayList<>(startWire.getWireConnections());
+							List<Connection> wireConnections = new ArrayList<>(wcs);
 							System.out.println(t.getName() + " " + startWire + ":");
 							for (int i = 0; i < wireConnections.size(); i++) {
 								Wire sinkWire = wireConnections.get(i).getSinkWire();
