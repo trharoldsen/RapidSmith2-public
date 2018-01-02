@@ -185,8 +185,8 @@ public class DeviceBrowser extends QMainWindow{
 		if(index.column() != 0) return;
 		TileWire currWire = currTile.getWire(index.data().toString());
 		if(currWire == null) return;
-		for(Connection c : currWire.getWireConnections()) {
-			scene.drawWire(currWire, (TileWire) c.getSinkWire());
+		for(Wire c : currWire.getNode().getWires()) {
+			scene.drawWire(currWire, (TileWire) c);
 		}
 	}
 	
@@ -225,7 +225,7 @@ public class DeviceBrowser extends QMainWindow{
 		for(Wire wire : currTile.getWires()) {
 			QTreeWidgetItem treeItem = new QTreeWidgetItem();
 			treeItem.setText(0, wire.getName());
-			Collection<Connection> connections = wire.getWireConnections();
+			Collection<Connection> connections = wire.getNode().getWireConnections();
 			treeItem.setText(1, String.format("%3d", connections.size()));
 			wireList.insertTopLevelItem(0, treeItem);
 		}

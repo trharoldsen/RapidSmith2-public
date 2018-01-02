@@ -26,7 +26,7 @@ import java.util.*;
 
 /**
  * A tree describing a route in a design.  Each RouteTree object represents
- * a node in the tree (with its associated wire in the device) and contains the
+ * a node in the tree (with its associated node in the device) and contains the
  * sinks and connections to the sinks.
  */
 public class RouteTree extends AbstractRouteTree<RouteTree> {
@@ -35,21 +35,21 @@ public class RouteTree extends AbstractRouteTree<RouteTree> {
 
 	/**
 	 * Creates a new unsourced route tree.
-	 * @param wire the wire for the starting node in the new tree
+	 * @param node the node for the starting node in the new tree
 	 */
-	public RouteTree(Wire wire) {
-		super(wire);
+	public RouteTree(Node node) {
+		super(node);
 	}
 
 	@Override
-	protected RouteTree newInstance(Wire wire) {
-		return new RouteTree(wire);
+	protected RouteTree newInstance(Node node) {
+		return new RouteTree(node);
 	}
 
 	@Override
 	protected void connectToSource(Connection c, AbstractRouteTree<RouteTree> parent) {
 		if (getParent() != null)
-			throw new IllegalStateException("RouteTree already sourced: wire=" + getWire() +
+			throw new IllegalStateException("RouteTree already sourced: node=" + getNode() +
 				", currentParent=" + getParent() + ", newParent=" + parent);
 
 		super.connectToSource(c, parent);
@@ -173,8 +173,7 @@ public class RouteTree extends AbstractRouteTree<RouteTree> {
 
 	private List<PIP> getAllPips(List<PIP> pips) {
 		for (RouteTree rt : getChildren()) {
-			if (rt.getConnection().isPip())
-				pips.add(rt.getConnection().getPip());
+			pips.add(rt.getConnection().getPip());
 			rt.getAllPips(pips);
 		}
 		return pips;
@@ -195,13 +194,13 @@ public class RouteTree extends AbstractRouteTree<RouteTree> {
 	@SuppressWarnings("unchecked")
 	public <S extends RouteTree> S deepCopy() {
 		Queue<CopyPair> q = new ArrayDeque<>();
-		RouteTree copy = newInstance(getWire());
+		RouteTree copy = newInstance(getNode());
 		q.add(new CopyPair(this, copy));
 
 		while (!q.isEmpty()) {
 			CopyPair pair = q.poll();
 			for (RouteTree origChild : pair.orig.getChildren()) {
-				RouteTree copyChild = origChild.newInstance(origChild.getWire());
+				RouteTree copyChild = origChild.newInstance(origChild.getNode());
 				pair.copy.connect(origChild.getConnection(), copyChild);
 				q.add(new CopyPair(origChild, copyChild));
 	}
@@ -217,14 +216,5 @@ public class RouteTree extends AbstractRouteTree<RouteTree> {
 			this.orig = orig;
 			this.copy = copy;
 		}
-	}
-
-	public String toRouteString(){
-		StringBuilder toReturn = new StringBuilder();
-		toReturn.append(this.getWire().getFullName()).append("\n");
-		for(RouteTree sink : this.getChildren()){
-			toReturn.append(sink.toRouteString());
-		}
-		return toReturn.toString();
 	}
 }

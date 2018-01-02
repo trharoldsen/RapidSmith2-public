@@ -27,10 +27,7 @@ import edu.byu.ece.rapidSmith.device.*;
 import edu.byu.ece.rapidSmith.gui.NumberedHighlightedTile;
 import edu.byu.ece.rapidSmith.gui.TileScene;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.*;
 
 /**
  * This class was written specifically for the DeviceBrowser class.  It
@@ -68,8 +65,8 @@ public class DeviceBrowserScene extends TileScene{
 
 	void drawWire(TileWire src, TileWire dst) {
 		int numWires = device.getNumUniqueWireTypes();
-		int srcOrdinal = src.ordinal();
-		int dstOrdinal = dst.ordinal();
+		int srcOrdinal = src.getTemplate().getOrdinal();
+		int dstOrdinal = dst.getTemplate().getOrdinal();
 		double x1 = (double) tileXMap.get(src.getTile())*tileSize  + (srcOrdinal%tileSize);
 		double y1 = (double) tileYMap.get(src.getTile())*tileSize  + (srcOrdinal*tileSize)/numWires;
 		double x2 = (double) tileXMap.get(dst.getTile())*tileSize  + (dstOrdinal%tileSize);
@@ -86,43 +83,42 @@ public class DeviceBrowserScene extends TileScene{
 	void drawConnectingWires(TileWire wire){
 		clearCurrentLines();
 		if(wire == null) return;
-		for(Connection w : wire.getWireConnections()) {
-			drawWire(wire, (TileWire) w.getSinkWire());
+		for(TileWire w : wire.getNode().getWires()) {
+			drawWire(wire, w);
 		}
 	}
 
 	private HashMap<Tile, Integer> findReachability(Tile t, Integer hops){
-		HashMap<Wire, Integer> level = new HashMap<>();
+		HashMap<Node, Integer> level = new HashMap<>();
 		HashMap<Tile, Integer> reachabilityMap = new HashMap<>();
 
-		Queue<Wire> queue = new LinkedList<>();
-		for(Wire wire : t.getWires()){
-			for(Connection c : wire.getWireConnections()){
-				Wire w = c.getSinkWire();
+		Queue<Node> queue = new LinkedList<>();
+		for(Node node : t.getNodes()) {
+			for(Connection c : node.getWireConnections()){
+				Node w = c.getSinkNode();
 				queue.add(w);
 				level.put(w, 0);
 			}
 		}
 
 		while(!queue.isEmpty()){
-			Wire currWire = queue.poll();
-			Integer i = reachabilityMap.get(currWire.getTile());
-			if(i == null){
-				i = 1;
-				reachabilityMap.put(currWire.getTile(), i);
-			}
-			else{
-				reachabilityMap.put(currWire.getTile(), i+1);
-			}
-			Integer lev = level.get(currWire);
+			Node currNode = queue.poll();
+			Integer lev = level.get(currNode);
 			if(lev < hops-1){
-				for(Connection c : currWire.getWireConnections()){
-					Wire w = c.getSinkWire();
-					queue.add(w);
-					level.put(w, lev+1);
+				for(Connection c : currNode.getWireConnections()){
+					Node w = c.getSinkNode();
+					if (level.putIfAbsent(w, lev+1) == null)
+						queue.add(w);
 				}
 			}
 		}
+
+		for (Map.Entry<Node, Integer> e : level.entrySet()) {
+			for (Wire wire : e.getKey().getWires()) {
+				reachabilityMap.compute(wire.getTile(), (k, v) -> v == null ? 1 : v + 1);
+			}
+		}
+
 		return reachabilityMap;
 	}
 

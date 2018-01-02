@@ -330,11 +330,12 @@ public class SimulatedAnnealingPlacer {
 	
 	private void buildSiteTypeToCompatibleMap() {
 		//TODO: play with load factor and other parameters of the hash map?
-		
+
+		Map<SiteType, Collection<Site>> compatSites = device.getCompatibleSitesMap();
 		for (SiteCluster sc: this.placeableSiteClusters) {
 			SiteType sitetype = sc.getSite().getType();
 			if(!siteTypeMap.containsKey(sitetype)) 
-				siteTypeMap.put(sitetype, device.getAllCompatibleSites(sitetype));
+				siteTypeMap.put(sitetype, new ArrayList<>(compatSites.get(sitetype)));
 		}
 	}
 	
@@ -613,6 +614,7 @@ public class SimulatedAnnealingPlacer {
 	 * Randomizes the design placement before annealing starts
 	 */
 	public void randomizePlacement() {
+
 		
 		HashMap<Site, SiteCluster> usedSites = new HashMap<>();
 		Random rn = new Random();
@@ -623,7 +625,7 @@ public class SimulatedAnnealingPlacer {
 			//}
 			while (true) {
 				//randomly select a site to place the cluster on
-				List<Site> compatible = device.getAllCompatibleSites(sc.getType());
+				List<Site> compatible = siteTypeMap.get(sc.getType());
 				int selection = rn.nextInt(compatible.size());
 				
 				//check to see if the placement is valid

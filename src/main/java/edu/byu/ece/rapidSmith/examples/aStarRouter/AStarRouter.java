@@ -17,7 +17,6 @@ import edu.byu.ece.rapidSmith.device.*;
  * in a design. This code demonstrates how a physical route can be created using
  * RapidSmith data structures if you choose to use the {@link RouteTree} class. This class 
  * requires the extended device information to be loaded with the function call 
- * {@link edu.byu.ece.rapidSmith.device.creation.ExtendedDeviceInfo#loadExtendedInfo(Device)}.
  */
 public class AStarRouter {
 	
@@ -35,10 +34,10 @@ public class AStarRouter {
 		// Cost function for comparing RouteTree objects
 		routeTreeComparator = (one, two) -> {
 				// cost = route tree cost (# of wires traversed) + distance to the target + distance from the source
-				Integer costOne = one.getCost() + manhattenDistance(one, targetTile) + manhattenDistance(one, startTile);
-				Integer costTwo = two.getCost() + manhattenDistance(two, targetTile) + manhattenDistance(two, startTile);
+				int costOne = one.getCost() + manhattenDistance(one, targetTile) + manhattenDistance(one, startTile);
+				int costTwo = two.getCost() + manhattenDistance(two, targetTile) + manhattenDistance(two, startTile);
 				
-				return costOne.compareTo(costTwo);
+				return Integer.compare(costOne, costTwo);
 		};
 		
 		usedConnectionMap = new HashMap<>();
@@ -65,8 +64,8 @@ public class AStarRouter {
 			
 			// initialize the target wire, and priority queue
 			SitePin sink = sinksToRoute.next(); 
-			Wire targetWire = getTargetSinkWire(sink);
-			targetTile = targetWire.getTile();
+			Node targetNode = getTargetSinkNode(sink);
+			targetTile = sink.getSite().getTile();
 			resortPriorityQueue(start);
 			
 			boolean routeFound = false;
@@ -78,15 +77,15 @@ public class AStarRouter {
 				
 				// Get a set of sink wires from the current RouteTree that already exist in the queue
 				// we don't need to add them again
-				Set<Wire> existingBranches = usedConnectionMap.getOrDefault(current, new HashSet<Wire>());
+				Set<Wire> existingBranches = usedConnectionMap.getOrDefault(current, new HashSet<>());
 				
 				// Search all connections for the wire of the current RouteTree
-				for (Connection connection : current.getWire().getWireConnections()) {
+				for (Connection connection : current.getNode().getWireConnections()) {
 					
 					Wire sinkWire = connection.getSinkWire();
 					
 					// Solution has been found
-					if (sinkWire.equals(targetWire)) {
+					if (sinkWire.equals(targetNode)) {
 						RouteTreeWithCost sinkTree = current.connect(connection);
 						sinkTree = finializeRoute(sinkTree);
 						terminals.add(sinkTree);
@@ -118,9 +117,10 @@ public class AStarRouter {
 	 * This is the beginning of the physical route. 
 	 */
 	private RouteTreeWithCost initializeRoute(CellNet net) {
-		Wire startWire = net.getSourceSitePin().getExternalWire();
-		RouteTreeWithCost start = new RouteTreeWithCost(startWire);
-		startTile = startWire.getTile();
+		SitePin sourceSitePin = net.getSourceSitePin();
+		Node startNode = sourceSitePin.getExternalNode();
+		RouteTreeWithCost start = new RouteTreeWithCost(startNode);
+		startTile = sourceSitePin.getSite().getTile();
 		usedConnectionMap.clear();
 		return start;
 	}
@@ -160,7 +160,10 @@ public class AStarRouter {
 	 * @return The Manhattan distance between {@code tree} and {@code compareTile}
 	 */
 	private int manhattenDistance(RouteTree tree, Tile compareTile) {
-		Tile currentTile = tree.getWire().getTile();
+		if (tree.getConnection() == null) {
+			return 0; // prioritize the source node
+		}
+		Tile currentTile = tree.getConnection().getSinkWire().getTile();
 		return Math.abs(currentTile.getColumn() - compareTile.getColumn() ) + Math.abs(currentTile.getRow() - compareTile.getRow()); 
 	}
 	
@@ -174,9 +177,9 @@ public class AStarRouter {
 	 */
 	private RouteTreeWithCost finializeRoute(RouteTreeWithCost route) {
 		
-		while (route.getWire().getConnectedPin() == null) {
-			assert (route.getWire().getWireConnections().size() == 1);
-			route = route.connect(route.getWire().getWireConnections().iterator().next());
+		while (route.getNode().getConnectedPin() == null) {
+			assert (route.getNode().getWireConnections().size() == 1);
+			route = route.connect(route.getNode().getWireConnections().iterator().next());
 		}
 		return route;
 	}
@@ -188,35 +191,34 @@ public class AStarRouter {
 	 *  
 	 * @param pin input {@link SitePin} of a {@link edu.byu.ece.rapidSmith.device.Site}
 	 */
-	private Wire getTargetSinkWire(SitePin pin) {
-		Wire sinkWire = pin.getExternalWire();
+	private Node getTargetSinkNode(SitePin pin) {
+		Node sinkNode = pin.getExternalWire().getNode();
 		assert (pin.isInput()) : "Can only find sink wires for input site pins..";
-		assert (sinkWire.getReverseWireConnections() != null) : "Reverse wire connections not loaded!";
-		
+
 		// search the reverse wire connections until we reach a wire that has more than one connection backwards.
-		while (sinkWire.getReverseWireConnections().size() == 1) {
+		while (sinkNode.getReverseWireConnections().size() == 1) {
 			
-			Wire previous = sinkWire.getReverseWireConnections().iterator().next().getSinkWire();
+			Node previous = sinkNode.getReverseWireConnections().iterator().next().getSinkNode();
 			
 			if (previous.getWireConnections().size() > 1) {
 				break;
 			}
-			sinkWire = previous;
+			sinkNode = previous;
 		}
 		
-		return sinkWire;
+		return sinkNode;
 	}
 
 	private static class RouteTreeWithCost extends RouteTree {
 		private int cost = 0;
 
-		public RouteTreeWithCost(Wire wire) {
-			super(wire);
+		public RouteTreeWithCost(Node node) {
+			super(node);
 		}
 
 		@Override
-		protected RouteTree newInstance(Wire wire) {
-			return new RouteTreeWithCost(wire);
+		protected RouteTree newInstance(Node node) {
+			return new RouteTreeWithCost(node);
 		}
 
 		public int getCost() {

@@ -65,6 +65,11 @@ public class Tile implements Serializable {
 	 */
 	private Map<TileWireTemplate, Integer> wireSites;
 
+	public Tile(int row, int column) {
+		this.row = row;
+		this.column = column;
+	}
+
 	/**
 	 * Returns the device to which this tile belongs.
 	 *
@@ -214,7 +219,7 @@ public class Tile implements Serializable {
 	 *
 	 * @param sites The new sites.
 	 */
-	public void setSites(ArrayList<Site> sites) {
+	public void setSites(List<Site> sites) {
 		this.sites = sites;
 	}
 
@@ -236,6 +241,12 @@ public class Tile implements Serializable {
 		return tileWires.values().stream()
 			.map(w -> new TileWire(this, w))
 			.collect(Collectors.toCollection(ArrayList::new));
+	}
+
+	public Collection<Node> getNodes() {
+		return getWires().stream()
+			.map(it -> it.getNode())
+			.collect(Collectors.toSet());
 	}
 
 	/**

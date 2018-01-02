@@ -410,43 +410,37 @@ public class XdcRoutingInterface {
 				
 		// initialize the routing data structure with the start wire
 		this.pipUsedInRoute = false;
-		RouteTree start = new RouteTree(startWire);
+		RouteTree start = new RouteTree(startWire.getNode());
 		Queue<RouteTree> searchQueue = new ArrayDeque<>();
-		Set<Wire> visited = new HashSet<>();
+		Set<Node> visited = new HashSet<>();
 
 		// initialize the search queue and visited wire set
 		searchQueue.add(start); 
-		visited.add(start.getWire());
+		visited.add(start.getNode());
 
 		while (!searchQueue.isEmpty()) {
 			
 			RouteTree routeTree = searchQueue.poll();
-			Wire sourceWire = routeTree.getWire();			
+			Node sourceNode = routeTree.getNode();
 			// add connecting wires that exist in the net to the search queue
 			int connectionCount = 0; 
 
-			for (Connection conn : routeTree.getWire().getWireConnections()) {
+			for (Connection conn : routeTree.getNode().getWireConnections()) {
 				
-				Wire sinkWire = conn.getSinkWire();
+				Node sinkNode = conn.getSinkNode();
 								
-				if (visited.contains(sinkWire)) {
+				if (visited.contains(sinkNode)) {
 					continue;
 				}
-				
-				if (conn.isPip()) { 
-					if (pipMap.getOrDefault(sourceWire.getFullName(), emptySet()).contains(sinkWire.getFullName())) {
-						this.pipUsedInRoute = true;
-						connectionCount++;
-						RouteTree sinkTree = routeTree.connect(conn);
-						searchQueue.add(sinkTree);
-						visited.add(sinkWire);
-					}
-				}
-				else { // if (!visited.contains(sinkWire)) {
+
+				String sourceName = conn.getSourceWire().getFullName();
+				String sinkName = conn.getSinkWire().getFullName();
+				if (pipMap.getOrDefault(sourceName, emptySet()).contains(sinkName)) {
+					this.pipUsedInRoute = true;
 					connectionCount++;
 					RouteTree sinkTree = routeTree.connect(conn);
 					searchQueue.add(sinkTree);
-					visited.add(sinkWire);
+					visited.add(sinkNode);
 				}
 			}
 			
@@ -602,22 +596,21 @@ public class XdcRoutingInterface {
 		for(int i = 2; i < toks.length; i++) {
 			String pipWireName = (namePrefix + toks[i].replace(":", "."));
 			SiteWire sw = tryGetWire(site, pipWireName);
-			Collection<Connection> connList = sw.getWireConnections();
-			
+
+			List<Connection> connList = sw.getNode().getWireConnections().stream()
+				.filter(it -> it.getSourceWire().equals(sw))
+				.collect(Collectors.toList());
+
 			// If the created wire has no connections, it is a polarity selector
 			// that has been removed from the site
 			if (connList.size() == 0) {
 				continue;
+			} else if (connList.size() > 1) {
+				throw new AssertionError("Wires driving site pips should have only one connection");
 			}
-			
-			assert (connList.size() == 1) : "Site Pip wires should have exactly one connection " + sw.getName() + " " + connList.size() ;
-			
-			Connection conn = connList.iterator().next();
-			
-			assert (conn.isPip()) : "Site Pip connection should be a PIP connection!";
-			
+
 			//add the input and output pip wires (there are two of these in RS2)
-			usedSitePips.add(new PIP(sw, conn.getSinkWire()));
+			usedSitePips.add(connList.get(0).getPip());
 
 			String[] vals = toks[i].split(":");
 			assert vals.length == 2;
@@ -784,43 +777,43 @@ public class XdcRoutingInterface {
 	private void buildIntrasiteRoute(IntrasiteRoute intrasiteRoute, Set<Wire> usedSiteWires) {
 		
 		// Initialize the search
-		Set<Wire> visitedWires = new HashSet<>(); // used to prevent cycles
+		Set<Node> visitedNodes = new HashSet<>(); // used to prevent cycles
 		Queue<RouteTree> routeQueue = new LinkedList<>();
 		
 		RouteTree startRoute = intrasiteRoute.getStartRoute();
-		Wire startWire = startRoute.getWire();
+		Node startNode = startRoute.getNode();
 		routeQueue.add(startRoute);
-		visitedWires.add(startWire);
+		visitedNodes.add(startNode);
 		
 		// continue the search until we have nowhere else to go
 		while (!routeQueue.isEmpty()) {
 			RouteTree currentRoute = routeQueue.poll();
-			Wire currentWire = currentRoute.getWire();
+			Node currentNode = currentRoute.getNode();
 
 			// reached a used bel pin that is not the source
-			if (intrasiteRoute.isValidBelPinSink(currentWire) && !currentWire.equals(startWire)) {
-				BelPin bp = currentWire.getTerminal();
+			if (intrasiteRoute.isValidBelPinSink(currentNode) && !currentNode.equals(startNode)) {
+				BelPin bp = currentNode.getTerminal();
 				intrasiteRoute.addBelPinSink(bp, currentRoute);
 			}
 			// reached a site pin
-			else if (connectsToSitePin(currentWire)) {
-				SitePin sinkPin = currentWire.getConnectedPin();
+			else if (connectsToSitePin(currentNode)) {
+				SitePin sinkPin = currentNode.getConnectedPin();
 				intrasiteRoute.addSitePinSink(sinkPin, currentRoute);
 			}
 			else {
 				
-				for (Connection conn : currentWire.getWireConnections()) {
+				for (Connection conn : currentNode.getWireConnections()) {
 										
 					// skip wires we already visited
-					if (visitedWires.contains(conn.getSinkWire())) {
+					if (visitedNodes.contains(conn.getSinkNode())) {
 						continue;
 					}
 					
 					// only add valid search connections to the queue
-					if (isQualifiedConnection(conn, currentWire, usedSiteWires)) {
+					if (isQualifiedConnection(conn, usedSiteWires)) {
 						RouteTree next = currentRoute.connect(conn);
 						routeQueue.add(next);
-						visitedWires.add(next.getWire());
+						visitedNodes.add(next.getNode());
 					}
 				}
 			}
@@ -834,10 +827,10 @@ public class XdcRoutingInterface {
 	 *	Returns <code>true</code> if the specified wire connects to 
 	 *a {@link SitePin}, <code>false</code> otherwise.
 	 * 
-	 * @param currentWire {@link Wire} object
+	 * @param currentNode {@link Node} object
 	 */
-	private boolean connectsToSitePin(Wire currentWire) {
-		return currentWire.getConnectedPin() != null;
+	private boolean connectsToSitePin(Node currentNode) {
+		return currentNode.getConnectedPin() != null;
 	}
 	
 	/**
@@ -850,14 +843,11 @@ public class XdcRoutingInterface {
 	 * </ul><p> 
 	 * 
 	 * @param conn {@link Connection} object
-	 * @param sourceWire The source {@link Wire} of the connection
 	 * @param usedSiteWires A set of used wires in the {@link Site} that is currently being searched
 	 */
-	private boolean isQualifiedConnection(Connection conn, Wire sourceWire, Set<Wire> usedSiteWires) {
-				
-		return !conn.isPip() || // the connection is a regular wire connection
-				isUsedRoutethrough(conn, sourceWire) || // or, the connection is a used lut routethrough 
-				usedSiteWires.contains(sourceWire); // or the connection is a used site pip
+	private boolean isQualifiedConnection(Connection conn, Set<Wire> usedSiteWires) {
+		return isUsedRoutethrough(conn) || // or, the connection is a used lut routethrough
+			usedSiteWires.contains(conn.getSourceWire()); // or the connection is a used site pip
 	}
 	
 	/**
@@ -872,16 +862,17 @@ public class XdcRoutingInterface {
 	 * @param conn Connection to test 
 	 * @return True if the Connection is an available routethrough. False otherwise.
 	 */
-	private boolean isUsedRoutethrough(Connection conn, Wire sourceWire) {
+	private boolean isUsedRoutethrough(Connection conn) {
 		
 		if (!conn.isRouteThrough()) {
 			return false;
 		}
 		
-		// a bel routethrough must also be connected to a BEL pin 
-		assert sourceWire.getTerminal() != null : "Wire: " + sourceWire + " should connect to BelPin!";
-		BelPin source = sourceWire.getTerminal();
-		
+		// a bel routethrough must also be connected to a BEL pin
+		Node sourceNode = conn.getSourceNode();
+		BelPin source = sourceNode.getTerminal();
+		assert source != null : "Wire: " + conn.getSourceWire() + " should connect to BelPin!";
+
 		BelRoutethrough routethrough = this.belRoutethroughMap.get(source.getBel());
 		
 		return routethrough != null && routethrough.getOutputWire().equals(conn.getSinkWire());
@@ -1116,12 +1107,11 @@ public class XdcRoutingInterface {
 		}
 		
 		// otherwise we assume its a VCC or GND net, which has a special Route string
-		String routeString = "\" ";
+		StringBuilder routeString = new StringBuilder("\" ");
 		for (RouteTree rt : net.getIntersiteRouteTreeList()) {
-			routeString += "( " + createVivadoRoutingString(rt.getRoot()) + ") ";
+			routeString.append("( ").append(createVivadoRoutingString(rt.getRoot())).append(") ");
 		}
-
-		return routeString + "\"";
+		return routeString.append("\"").toString();
 	}
 	
 	/*
@@ -1131,40 +1121,58 @@ public class XdcRoutingInterface {
 	private static String createVivadoRoutingString (RouteTree rt) {
 		
 		RouteTree currentRoute = rt; 
-		String routeString = "{ ";
-			
+		StringBuilder routeString = new StringBuilder();
+		routeString.append("{ ");
+
+		SitePin source = rt.getNode().getReverseConnectedPin();
+		assert source != null;
+		Wire sourceWire = source.getExternalWire();
+		routeString = routeString.append(sourceWire.getTile().getName() + "/" + sourceWire.getName() + " ");
+
 		while ( true ) {
-			Tile t = currentRoute.getWire().getTile();
-			routeString = routeString.concat(t.getName() + "/" + currentRoute.getWire().getName() + " ");
-						
 			// children may be changed in the following loop, so make a copy
 			ArrayList<RouteTree> children = new ArrayList<>(currentRoute.getChildren());
-			
-			if (children.size() == 0)
-				break;
-			
-			ArrayList<RouteTree> trueChildren = new ArrayList<>();
-			for (int i = 0; i < children.size(); i++) {
-				RouteTree child = children.get(i);
-				Connection c = child.getConnection();
-				if (c.isPip() || c.isRouteThrough()) {
-					trueChildren.add(child);
-				}
-				else { // if its a regular wire connection and we don't want to add this to the route tree					
-					children.addAll(child.getChildren());
-				}
-			}
-			
-			if (trueChildren.size() == 0)
-				break;
-			
-			for(int i = 0; i < trueChildren.size() - 1; i++) 
-				routeString = routeString.concat(createVivadoRoutingString(trueChildren.get(i)));
-			
-			currentRoute = trueChildren.get(trueChildren.size() - 1) ; 
+
+			if (children.isEmpty()) break;
+				ArrayList<RouteTree> trueChildren = new ArrayList<>(children);
+
+				for (int i = 0; i < trueChildren.size() - 1; i++)
+					createVivadoRoutingBranchString(trueChildren.get(i), routeString);
+
+				currentRoute = trueChildren.get(trueChildren.size() - 1);
 		}
 		
-		return routeString + "} ";
+		return routeString.append("} ").toString();
+	}
+
+	private static void createVivadoRoutingBranchString(RouteTree rt, StringBuilder routeString) {
+		RouteTree currentRoute = rt;
+
+		// start to branch in the string
+		routeString.append("{ ");
+		while ( true ) {
+			// add the sinkwire of the connection to the string, this starts the branch
+			Connection c = rt.getConnection();
+			Wire sinkWire = c.getSinkWire();
+			Tile t = sinkWire.getTile();
+			routeString.append(t.getName()).append("/").append(sinkWire.getName()).append(" ");
+
+			// children may be changed in the following loop, so make a copy
+			ArrayList<RouteTree> children = new ArrayList<>(currentRoute.getChildren());
+
+			// no more children, we are done with this branch
+			if (children.size() == 0)
+				break;
+
+			// If there is more than 1 child, create a branch for the first n-1 branches
+			for(int i = 0; i < children.size() - 1; i++)
+				createVivadoRoutingBranchString(children.get(i), routeString);
+
+			currentRoute = children.get(children.size() - 1) ;
+		}
+
+		// end the branch in the string
+		routeString.append("} ");
 	}
 	
 	/* **************
@@ -1184,7 +1192,7 @@ public class XdcRoutingInterface {
 		boolean isValid();
 		RouteTree getStartRoute();
 		void setSinksAsRouted();
-		boolean isValidBelPinSink(Wire currentWire);
+		boolean isValidBelPinSink(Node currentNode);
 	}
 	
 	/**
@@ -1204,15 +1212,15 @@ public class XdcRoutingInterface {
 			this.net = net;
 			this.belPinSinks = new HashSet<>();
 			this.terminals = new HashSet<>();
-			this.route = new RouteTree(source.getInternalWire());
+			this.route = new RouteTree(source.getInternalNode());
 			this.allowUnusedBelPins = allowUnusedBelPinSinks;
 		}
-				
+
 		@Override
 		public RouteTree getStartRoute() {
 			return route;
 		}
-	
+
 		@Override
 		public boolean addBelPinSink(BelPin belPin, RouteTree terminal) {
 			
@@ -1279,9 +1287,9 @@ public class XdcRoutingInterface {
 		}
 
 		@Override
-		public boolean isValidBelPinSink(Wire currentWire) {
+		public boolean isValidBelPinSink(Node currentNode) {
 			
-			BelPin terminal = currentWire.getTerminal();
+			BelPin terminal = currentNode.getTerminal();
 						
 			// BEL pin sink is valid if the wire connects to
 			// a bel pin and either:
@@ -1301,7 +1309,6 @@ public class XdcRoutingInterface {
 				return;
 			}
 			
-			assert (cell != null) : "Expected a cell to be mapped to a bel." ;
 			assert (net.isStaticNet()) : "Net should be a static net!";
 			String pinName = (net.isVCCNet() ? "VCC_pseudo" : "GND_pseudo") + cell.getPseudoPinCount();
 			CellPin pseudo = cell.attachPseudoPin(pinName, belPin.getDirection());
@@ -1332,7 +1339,7 @@ public class XdcRoutingInterface {
 			this.belPinSinks = new HashSet<>();
 			this.sitePinSinks = new HashSet<>();
 			this.terminals = new HashSet<>();
-			this.route = new RouteTree(source.getWire());
+			this.route = new RouteTree(source.getNode());
 		}
 
 		@Override
@@ -1430,8 +1437,8 @@ public class XdcRoutingInterface {
 		}
 
 		@Override
-		public boolean isValidBelPinSink(Wire currentWire) {
-			BelPin terminal = currentWire.getTerminal();
+		public boolean isValidBelPinSink(Node currentNode) {
+			BelPin terminal = currentNode.getTerminal();
 			return terminal != null && isBelPinUsed(terminal);
 		}
 	}

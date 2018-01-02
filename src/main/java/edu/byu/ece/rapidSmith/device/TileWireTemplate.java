@@ -24,21 +24,15 @@ import edu.byu.ece.rapidSmith.util.Ordinable;
 public class TileWireTemplate implements Ordinable<TileWireTemplate> {
 	private static final long serialVersionUID = -349075013690610863L;
 	private final String name;
-	private final Offset nodeOffset;
 	private final int ordinal;
 
-	public TileWireTemplate(String name, Offset nodeOffset, int ordinal) {
+	public TileWireTemplate(String name, int ordinal) {
 		this.name = name;
-		this.nodeOffset = nodeOffset;
 		this.ordinal = ordinal;
 	}
 
 	public String getName() {
 		return name;
-	}
-
-	public Offset getNodeOffset() {
-		return nodeOffset;
 	}
 
 	@Override

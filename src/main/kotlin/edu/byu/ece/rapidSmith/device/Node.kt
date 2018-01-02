@@ -1,6 +1,8 @@
 package edu.byu.ece.rapidSmith.device
 
 sealed class Node {
+	abstract val wires: Collection<Wire>
+
 	/**
 	 * Return connection linking this wire to other wires in the same hierarchy.
 	 */
@@ -56,6 +58,11 @@ class TileNode internal constructor(
 	private val rootTile: Tile,
 	internal val template: TileNodeTemplate
 ) : Node() {
+	override val wires: Collection<TileWire>
+		get() {
+			return template.wires.map { (t, o) -> TileWire(getOffsetTile(o), t) }
+		}
+
 	/**
 	 * Returns all sink connections within and between tiles.
 	 */
@@ -164,6 +171,11 @@ class SiteNode internal constructor(
 	private val site: Site,
 	internal val template: SiteNodeTemplate
 ) : Node() {
+	override val wires: Collection<SiteWire>
+		get() {
+			return template.wires.map { t -> SiteWire(site, t) }
+		}
+
 	/**
 	 * Returns all sink connections within and between tiles.
 	 */

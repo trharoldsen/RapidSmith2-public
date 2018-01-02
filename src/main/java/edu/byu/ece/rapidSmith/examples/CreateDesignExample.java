@@ -31,7 +31,9 @@ import edu.byu.ece.rapidSmith.device.families.Artix7;
 import org.jdom2.JDOMException;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -110,7 +112,8 @@ public class CreateDesignExample {
 		// There are 2 ways to do this.  
 		// The first (and simpler) way is when you know exactly where you want to place it.
 		// Get the first SLICEL in the device's SLICEL sites
-		Site slice = device.getAllSitesOfType(Artix7.SiteTypes.SLICEL).get(0);
+		Map<SiteType, Collection<Site>> allSitesOfType = device.getSitesOfTypeMap();
+		Site slice = allSitesOfType.get(Artix7.SiteTypes.SLICEL).iterator().next();
 		// Place the cell onto the A6LUT of that site
 		design.placeCell(invcell, slice.getBel("A6LUT"));
 		// Now, let's un-place the cell since we are next going to re-place it using the 2nd method
@@ -132,7 +135,7 @@ public class CreateDesignExample {
 		// Grab the first primitive site type in the list (should be SLICEL since the list is sorted)
 		SiteType sitetype = anchorsitetypes.get(0);
 		// Get the first SLICEL in the device's SLICEL sites
-		slice = device.getAllSitesOfType(sitetype).get(0);
+		slice = allSitesOfType.get(sitetype).iterator().next();
 		// Place the invcell on a suitable LUT (the first one found that is suitable)
 		// Get a list of the ones which have the primitive site type matching above (which will be SLICEL or SLICEM)
 		anchors = invcell.getPossibleAnchors().stream()

@@ -23,6 +23,7 @@ package edu.byu.ece.rapidSmith.examples;
 import java.io.IOException;
 import java.util.*;
 
+import edu.byu.ece.rapidSmith.device.Connection;
 import edu.byu.ece.rapidSmith.interfaces.vivado.VivadoCheckpoint;
 import edu.byu.ece.rapidSmith.interfaces.vivado.VivadoInterface;
 import edu.byu.ece.rapidSmith.design.subsite.Cell;
@@ -211,9 +212,9 @@ public class DesignAnalyzer {
 	 * to show where the route enters and exits sites as well as a description of the sink pins where it terminates.
 	 */
 	public static String createRoutingString(String indnt, CellNet n, RouteTree rt, boolean head, boolean inside) {
-		String s="";
+		StringBuilder s= new StringBuilder();
 
-		if (rt == null)  return s;
+		if (rt == null)  return s.toString();
 
 		// A RouteTree object contains a collection of RouteTree objects which represent the downstream segments making up the route.
 		// If this collection has more than element, it represents that the physical wire branches at this point.
@@ -221,17 +222,15 @@ public class DesignAnalyzer {
 		
 		// Always print first wire at the head of a net's RouteTree. The format is "tileName/wireName".
 		if (head)
-			s = "<head>" + rt.getWire().getFullName();
+			s = new StringBuilder("<head>" + rt.getNode().toString());
 		
 
 		// The connection member of the RouteTree object describes the connection between this RouteTree and its predecessor.
 		// The connection may be a programmable connection (PIP or route-through) or it may be a non-programmable connection.  
 		// Look upstream and, if it was a programmable connection, include it.
-		else if (rt.getConnection().isPip() || rt.getConnection().isRouteThrough())
-			s = " " + rt.getWire().getFullName();
-		// It is a non-programmable connection - append it with marker.
-		else  
-			s += "=" + rt.getWire().getName();
+		Connection c = rt.getConnection();
+		s.append("=").append(c.getSourceWire().getFullName());
+		s.append(" ").append(c.getSinkWire().getFullName());
 
 		// Now, let's look downstream and see where to go and what to print.
 		// If it is a leaf cell, it either: 
@@ -245,9 +244,9 @@ public class DesignAnalyzer {
 				// If we are at a site pin then what we do differs depending on whether we are inside the site (and leaving) or outside the site (and entering). 
 				if (inside) {  
 					// Inside site, so look for correct intersite route tree to leave on
-					for (RouteTree rt1 : n.getIntersiteRouteTreeList()) 
-						if (sp.getExternalWire().equals(rt1.getWire())) 
-							return s + " SitePin{" + sp + "} <<entering general routing fabric>> " + createRoutingString(indnt, n, rt1, true, !inside);
+					RouteTree rt1 = n.getSinkRouteTree(sp);
+					if (rt1 != null)
+						return s.append(" SitePin{").append(sp).append("} <<entering general routing fabric>> ").append(createRoutingString(indnt, n, rt1, true, false)).toString();
 					////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 					// An explanation on the above code is in order.
 					// This explanation only applies to regular nets (VCC and GND nets have their own special rules).
@@ -270,8 +269,9 @@ public class DesignAnalyzer {
 					// This last case (3b) is handled below.
 					////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 					
-					// Case 3b: If we get here, net connects to a SitePin but there is no corresponding RouteTree... 
-					return s + " SitePin{" + sp + "} <<<<Connects to no corresponding RouteTree outside site>>>> ";
+					// Case 3b: If we get here, net connects to a SitePin but there is no corresponding RouteTree...
+					else
+						return s.append(" SitePin{").append(sp).append("} <<<<Connects to no corresponding RouteTree outside site>>>> ").toString();
 				}
 				else 
 					// Outside site, so just follow the route from the general routing fabric and into a site
@@ -290,19 +290,17 @@ public class DesignAnalyzer {
 
 		else {
 			// Otherwise, if it is not a leaf route tree, then iterate across its sink trees and add them
-			for (Iterator<RouteTree> it = sinkTrees.iterator(); it.hasNext(); ) {
-				RouteTree sink = it.next();
-
+			for (RouteTree sink : sinkTrees) {
 				// If there is only one sink tree then this is just the next wire segment in the route (not a branch).  
 				// Don't enclose this in ()'s, just list it as the next wire segment. 
-				if (sinkTrees.size() == 1) 
-					s += createRoutingString(indnt, n, sink, false, inside);
-				// Otherwise, this is a branch of the wire, so enclose it in ( )'s to mark that it represents a branch in the wire.
+				if (sinkTrees.size() == 1)
+					s.append(createRoutingString(indnt, n, sink, false, inside));
+					// Otherwise, this is a branch of the wire, so enclose it in ( )'s to mark that it represents a branch in the wire.
 				else {
-					s += "\n" + indnt + "   (" + createRoutingString(indnt + "   ", n, sink, false, inside) + "\n" + indnt + "   )";
+					s.append("\n").append(indnt).append("   (").append(createRoutingString(indnt + "   ", n, sink, false, inside)).append("\n").append(indnt).append("   )");
 				}
 			}
-			return s;
+			return s.toString();
 		}
 	}
 

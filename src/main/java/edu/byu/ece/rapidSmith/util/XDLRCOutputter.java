@@ -52,7 +52,6 @@ public class XDLRCOutputter {
 	private String nl = System.lineSeparator();
 	private boolean writeWires = true;
 	private boolean forceOrdering = false;
-	private boolean buildDefsFromTemplates = false;
 	private String ind = "\t";
 
 	private Writer out;
@@ -101,20 +100,6 @@ public class XDLRCOutputter {
 	 */
 	public void forceOrdering(boolean orderWires) {
 		this.forceOrdering = orderWires;
-	}
-
-	/**
-	 * Determines whether to use the primitive def list of the device or to rebuild
-	 * the structure from the site templates.  The two should be identical but this
-	 * will be useful for validating this equivalency.  Building the defs from the
-	 * templates may take longer to run.
-	 * <p>
-	 * Defaults to false.
-	 * @param build false to use the existing primitive defs, true to rebuild from
-	 *   the site templates.
-	 */
-	public void buildDefsFromTemplates(boolean build) {
-		this.buildDefsFromTemplates = build;
 	}
 
 	/**
@@ -192,15 +177,12 @@ public class XDLRCOutputter {
 		}
 		out.append(")").append(nl);
 
-		out.append("(primitive_defs ").append(String.valueOf(device.getPrimitiveDefs().size())).append(nl);
-		List<PrimitiveDef> defs;
-		if (buildDefsFromTemplates) {
-			defs = device.getSiteTemplates().values().stream()
-					.map(this::createPrimitiveDef)
-					.collect(Collectors.toCollection(ArrayList::new));
-		} else {
-			defs = new ArrayList<>(device.getPrimitiveDefs().values());
-		}
+		out.append("(primitive_defs ").append(String.valueOf(device.getSupportedSiteTypes().size())).append(nl);
+		List<PrimitiveDef> defs = device.getSupportedSiteTypes().stream()
+			.map(st -> device.getTemplateOfSiteType(st))
+			.map(this::createPrimitiveDef)
+			.collect(Collectors.toCollection(ArrayList::new));
+
 		if (forceOrdering)
 			defs.sort(Comparator.comparing(o -> o.getType().name()));
 		for (PrimitiveDef def : defs) {
@@ -211,7 +193,10 @@ public class XDLRCOutputter {
 	}
 
 	private void writeTile(Tile tile) throws IOException {
-		out.append(ind).append("(tile ").append(String.valueOf(tile.getRow())).append(" ").append(String.valueOf(tile.getColumn())).append(" ").append(tile.getName()).append(" ").append(String.valueOf(tile.getType())).append(" ").append(String.valueOf(tile.getSites() == null ? "0" : tile.getSites().length)).append(nl);
+		out.append(ind).append("(tile ").append(String.valueOf(tile.getRow())).append(" ");
+		out.append(String.valueOf(tile.getColumn())).append(" ").append(tile.getName()).append(" ");
+		out.append(String.valueOf(tile.getType())).append(" ");
+		out.append(String.valueOf(tile.getSites() == null ? "0" : tile.getSites().size())).append(nl);
 		int numPinWires = 0;
 		if (tile.getSites() != null) {
 			for (Site site : tile.getSites()) {
@@ -232,23 +217,19 @@ public class XDLRCOutputter {
 				out.append(ind).append(ind).append("(wire ");
 				out.append(wireName).append(" ");
 
-				List<Connection> nonPips = new ArrayList<>();
-				for (Connection c : wire.getWireConnections()) {
-					if (!c.isPip())
-						nonPips.add(c);
-				}
+				Node node = wire.getNode();
+				List<Wire> nonPips = new ArrayList<>(node.getWires());
 				if (forceOrdering)
-					nonPips.sort(new ConnectionComparator());
+					nonPips.sort(Comparator.comparing(k -> k.getName()));
 
-				out.append("").append(String.valueOf(nonPips.size()));
+				out.append(Integer.toString(nonPips.size()));
 				if (nonPips.size() == 0) {
 					out.append(")").append(nl);
 				} else {
 					out.append(nl);
-					for (Connection c : nonPips) {
-						Wire sinkWire = c.getSinkWire();
+					for (Wire sinkWire : nonPips) {
 						out.append(ind).append(ind).append(ind).append("(conn ");
-						out.append(String.valueOf(sinkWire.getTile())).append(" ");
+						out.append(sinkWire.getTile().toString()).append(" ");
 						out.append(sinkWire.getName()).append(")").append(nl);
 					}
 					out.append(ind).append(ind).append(")").append(nl);
@@ -258,12 +239,11 @@ public class XDLRCOutputter {
 			int numPips = 0;
 			for (String wireName : wireNames) {
 				Wire sourceWire = tile.getWire(wireName);
+				Node sourceNode = sourceWire.getNode();
 
-				List<Connection> pips = new ArrayList<>();
-				for (Connection c : sourceWire.getWireConnections()) {
-					if (c.isPip())
-						pips.add(c);
-				}
+				List<Connection> pips = sourceNode.getWireConnections().stream()
+					.filter(it -> it.getSourceWire().equals(sourceWire))
+					.collect(Collectors.toCollection(ArrayList::new));
 				if (forceOrdering)
 					pips.sort(new ConnectionComparator());
 
@@ -297,13 +277,10 @@ public class XDLRCOutputter {
 	}
 
 	private boolean isBidirectionalPip(Wire sourceWire, Wire sinkWire) {
-		for (Connection rev : sinkWire.getWireConnections()) {
-			Wire sourceOfSink = rev.getSinkWire();
-			if (sourceWire.equals(sourceOfSink)) {
-				return true;
-			}
-		}
-		return false;
+		Node sinkNode = sinkWire.getNode();
+		return sinkNode.getReverseWireConnections().stream()
+			.filter(it -> it.getSourceWire().equals(sinkWire))
+			.anyMatch(it -> it.getSinkWire().equals(sourceWire));
 	}
 
 	private void writeSite(Site site, boolean writeWires) throws IOException {
@@ -317,26 +294,13 @@ public class XDLRCOutputter {
 		} else {
 			out.append(nl);
 
-			List<String> sinkPins = new ArrayList<>(site.getSinkPinNames());
+			List<SitePin> pins = new ArrayList<>(site.getPins());
 			if (forceOrdering)
-				Collections.sort(sinkPins);
-			for (String pinName : sinkPins) {
-				SitePin pin = site.getSinkPin(pinName);
+				pins.sort(Comparator.comparing(k -> k.getName()));
+			for (SitePin pin : pins) {
 				out.append(ind).append(ind).append(ind).append("(pinwire ");
-				out.append(pinName).append(" ");
-				out.append("input ");
-				out.append(pin.getExternalWire().getName());
-				out.append(")").append(nl);
-			}
-
-			List<String> sourcePins = new ArrayList<>(site.getSourcePinNames());
-			if (forceOrdering)
-				Collections.sort(sourcePins);
-			for (String pinName : sourcePins) {
-				SitePin pin = site.getSourcePin(pinName);
-				out.append(ind).append(ind).append(ind).append("(pinwire ");
-				out.append(pinName).append(" ");
-				out.append("output ");
+				out.append(pin.getName()).append(" ");
+				out.append(pin.getDirection() == PinDirection.IN ? "input " : "output ");
 				out.append(pin.getExternalWire().getName());
 				out.append(")").append(nl);
 			}
@@ -442,11 +406,11 @@ public class XDLRCOutputter {
 	}
 
 	private void createPinElements(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
-		for (SitePinTemplate sitePin : template.getSinks().values()) {
+		for (SitePinTemplate sitePin : template.getPinTemplates()) {
 			PrimitiveDefPin defSitePin = new PrimitiveDefPin();
 			defSitePin.setExternalName(sitePin.getName());
 			defSitePin.setInternalName(sitePin.getName());
-			defSitePin.setDirection(PinDirection.IN);
+			defSitePin.setDirection(sitePin.getDirection() == PinDirection.IN ? PinDirection.IN : PinDirection.OUT);
 			def.addPin(defSitePin);
 
 			PrimitiveElement element = new PrimitiveElement();
@@ -456,66 +420,38 @@ public class XDLRCOutputter {
 			PrimitiveDefPin elPin = new PrimitiveDefPin();
 			elPin.setInternalName(element.getName());
 			elPin.setExternalName(element.getName());
-			elPin.setDirection(PinDirection.OUT);
+			elPin.setDirection(sitePin.getDirection() == PinDirection.IN ? PinDirection.OUT : PinDirection.IN);
 			element.addPin(elPin);
 
 			def.addElement(element);
 		}
-
-		for (SitePinTemplate sitePin : template.getSources().values()) {
-			PrimitiveDefPin defSitePin = new PrimitiveDefPin();
-			defSitePin.setExternalName(sitePin.getName());
-			defSitePin.setInternalName(sitePin.getName());
-			defSitePin.setDirection(PinDirection.OUT);
-			def.addPin(defSitePin);
-
-			PrimitiveElement el = new PrimitiveElement();
-			el.setName(sitePin.getName());
-			el.setPin(true);
-
-			PrimitiveDefPin elPin = new PrimitiveDefPin();
-			elPin.setExternalName(el.getName());
-			elPin.setInternalName(el.getName());
-			elPin.setDirection(PinDirection.IN);
-			el.addPin(elPin);
-
-			def.addElement(el);
-
-			pinWiresMap.put(sitePin.getInternalWire(), new Pin(el, el.getName()));
-		}
 	}
 
 	private void createBelElements(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
-		for (BelTemplate bel : template.getBelTemplates().values()) {
+		for (BelTemplate bel : template.getBelTemplates()) {
 			PrimitiveElement el = new PrimitiveElement();
 			el.setName(bel.getId().getName());
 			el.setBel(true);
-			for (BelPinTemplate belPin : bel.getSinks().values()) {
+			for (BelPinTemplate belPin : bel.getPinTemplates()) {
 				PrimitiveDefPin pin = new PrimitiveDefPin();
 				pin.setExternalName(belPin.getName());
-				pin.setDirection(PinDirection.IN);
+				pin.setDirection(pin.isOutput() ? PinDirection.OUT : PinDirection.IN);
 				el.addPin(pin);
 
 				pinWiresMap.put(belPin.getWire(), new Pin(el, belPin.getName()));
-			}
-			for (BelPinTemplate belPin : bel.getSources().values()) {
-				PrimitiveDefPin pin = new PrimitiveDefPin();
-				pin.setExternalName(belPin.getName());
-				pin.setDirection(PinDirection.OUT);
-				el.addPin(pin);
 			}
 			def.addElement(el);
 		}
 	}
 
 	private void createPIPMuxElements(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
-		for (SiteWireTemplate source : template.getRouting().keySet()) {
-			List<WireConnection<SiteWireTemplate>> wcs = template.getWireConnections(source)
-				.stream().filter(w -> w.isPIP())
-				.collect(Collectors.toList());
-
-			for (WireConnection<SiteWireTemplate> wc : wcs) {
-				SiteWireTemplate sink = wc.getSinkWire();
+		List<SiteNodeTemplate> nodes = template.getWireNodesMap().values().stream()
+			.distinct()
+			.collect(Collectors.toList());
+		for (SiteNodeTemplate node : nodes) {
+			for (SiteNodeConnection c : node.getConnections()) {
+				SiteWireTemplate source = c.getSourceWire();
+				SiteWireTemplate sink = c.getSinkWire();
 
 				String elName = getElementNameFromWire(sink.getName());
 				PrimitiveElement el = def.getElement(elName);
@@ -542,23 +478,21 @@ public class XDLRCOutputter {
 	}
 
 	private void createSitePinConnections(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
-		for (SitePinTemplate sitePin : template.getSinks().values()) {
-			PrimitiveElement el = def.getElement(sitePin.getName());
-
-			SiteWireTemplate sitePinWire = sitePin.getInternalWire();
-			ArraySet<WireConnection<SiteWireTemplate>> wcs = template.getWireConnections(sitePinWire);
-			if (wcs == null)
+		for (SitePinTemplate sitePin : template.getPinTemplates()) {
+			if (!sitePin.isOutput())
 				continue;
 
-			Queue<SiteWireTemplate> wires = new LinkedList<>();
-			for (WireConnection<SiteWireTemplate> wc : wcs) {
-				wires.add(wc.getSinkWire());
-			}
+			SiteWireTemplate swt = sitePin.getInternalWire();
+			SiteNodeTemplate snt = template.getWireNodesMap().get(swt);
+			if (snt == null)
+				continue;
 
-			while (!wires.isEmpty()) {
-				SiteWireTemplate wire = wires.poll();
-				if (pinWiresMap.containsKey(wire)) {
-					Pin sink = pinWiresMap.get(wire);
+			PrimitiveElement el = def.getElement(sitePin.getName());
+			for (SiteNodeConnection snc : snt.getConnections()) {
+				SiteWireTemplate oswt = snc.getSourceWire();
+
+				if (pinWiresMap.containsKey(oswt)) {
+					Pin sink = pinWiresMap.get(oswt);
 
 					PrimitiveConnection fc = new PrimitiveConnection();
 					fc.setElement0(el.getName());
@@ -575,64 +509,44 @@ public class XDLRCOutputter {
 					bc.setElement1(sink.element.getName());
 					bc.setPin1(sink.pin);
 					sink.element.addConnection(bc);
-
-					continue;
-				}
-
-				wcs = template.getWireConnections(wire);
-				if (wcs == null)
-					continue;
-				for (WireConnection<SiteWireTemplate> wc : wcs) {
-					wires.add(wc.getSinkWire());
 				}
 			}
 		}
 	}
 
 	private void createBelPinConnections(SiteTemplate template, Map<SiteWireTemplate, Pin> pinWiresMap, PrimitiveDef def) {
-		for (BelTemplate bel : template.getBelTemplates().values()) {
+		for (BelTemplate bel : template.getBelTemplates()) {
 			PrimitiveElement el = def.getElement(bel.getId().getName());
 
-			for (BelPinTemplate belPin : bel.getSources().values()) {
-				SiteWireTemplate pinWire = belPin.getWire();
-				ArraySet<WireConnection<SiteWireTemplate>> wcs = template.getWireConnections(pinWire);
-				if (wcs == null)
+			for (BelPinTemplate belPin : bel.getPinTemplates()) {
+				if (belPin.getDirection() != PinDirection.OUT)
 					continue;
 
-				Queue<SiteWireTemplate> wires = new LinkedList<>();
-				for (WireConnection<SiteWireTemplate> wc : wcs) {
-					wires.add(wc.getSinkWire());
-				}
+				SiteWireTemplate swt = belPin.getWire();
+				SiteNodeTemplate snt = template.getWireNodesMap().get(swt);
+				if (snt == null)
+					continue;
+				for (SiteNodeConnection snc : snt.getConnections()) {
+					SiteWireTemplate oswt = snc.getSourceWire();
 
-				while (!wires.isEmpty()) {
-					SiteWireTemplate wire = wires.poll();
-					if (pinWiresMap.containsKey(wire)) {
-						Pin sink = pinWiresMap.get(wire);
+					if (pinWiresMap.containsKey(oswt)) {
+						Pin sink = pinWiresMap.get(oswt);
 
 						PrimitiveConnection fc = new PrimitiveConnection();
 						fc.setElement0(el.getName());
-						fc.setPin0(belPin.getName());
+						fc.setPin0(el.getName());
 						fc.setForwardConnection(true);
 						fc.setElement1(sink.element.getName());
 						fc.setPin1(sink.pin);
 						el.addConnection(fc);
 
 						PrimitiveConnection bc = new PrimitiveConnection();
-						bc.setElement0(sink.element.getName());
-						bc.setPin0(sink.pin);
+						bc.setElement0(el.getName());
+						bc.setPin0(el.getName());
 						bc.setForwardConnection(false);
-						bc.setElement1(el.getName());
-						bc.setPin1(belPin.getName());
+						bc.setElement1(sink.element.getName());
+						bc.setPin1(sink.pin);
 						sink.element.addConnection(bc);
-
-						continue;
-					}
-
-					wcs = template.getWireConnections(wire);
-					if (wcs == null)
-						continue;
-					for (WireConnection<SiteWireTemplate> wc : wcs) {
-						wires.add(wc.getSinkWire());
 					}
 				}
 			}
@@ -669,7 +583,6 @@ public class XDLRCOutputter {
 		XDLRCOutputter outputter = new XDLRCOutputter();
 		outputter.writeWires(arguments.writeWires());
 		outputter.forceOrdering(arguments.ordered());
-		outputter.buildDefsFromTemplates(arguments.buildDefs());
 
 		Writer out = null;
 		try {
@@ -697,7 +610,6 @@ public class XDLRCOutputter {
 		private Set<Tile> tiles;
 		private boolean writeWires;
 		private boolean ordered;
-		private boolean buildDefs;
 		private Path output;
 
 		public Arguments(OptionParser parser, String... args) {
@@ -719,10 +631,6 @@ public class XDLRCOutputter {
 
 		public boolean ordered() {
 			return ordered;
-		}
-
-		public boolean buildDefs() {
-			return buildDefs;
 		}
 
 		public Path getOutput() {
@@ -786,7 +694,6 @@ public class XDLRCOutputter {
 
 			writeWires = options.has("wires");
 			ordered = options.has("ordered");
-			buildDefs = options.has("build_defs");
 
 			output = Paths.get(device.getPartName() + ".xdlrc");
 			if (options.nonOptionArguments().size() >= 2) {

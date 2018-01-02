@@ -139,18 +139,23 @@ public final class RapidSmithDebug {
 	 * @return A formatted TCL command that can be run directly in Vivado.
 	 */
 	public static String createHighlightWiresTclCommand(Collection<RouteTree> routeTrees) {
-		String cmd = "select [get_wires {";
+		StringBuilder cmd = new StringBuilder("select [get_wires {");
 		
 		for(RouteTree rt : routeTrees) {
 
 			for (RouteTree routeTree : rt.getRoot()) {
-				Wire w = routeTree.getWire();
-				cmd += w.getTile().getName() + "/" + w.getName() + " ";
+				Connection c = routeTree.getConnection();
+				if (c != null) {
+					Wire source = c.getSourceWire();
+					cmd.append(source.getTile().getName()).append("/").append(source.getName()).append(" ");
+					Wire sink = c.getSinkWire();
+					cmd.append(sink.getTile().getName()).append("/").append(sink.getName()).append(" ");
+				}
 			}
 		}
-		cmd += "}]";
+		cmd.append("}]");
 		
-		return cmd;
+		return cmd.toString();
 	}
 	
 	/**

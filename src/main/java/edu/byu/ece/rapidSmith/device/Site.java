@@ -133,9 +133,8 @@ public final class Site implements Serializable{
 	
 	/**
 	 * Sets the XY coordinates for this site based on the name.
-	 * @param name the name of the site to infer and set the XY coordinates of.
 	 */
-	public boolean parseCoordinatesFromName(String name) {
+	public boolean parseCoordinatesFromName() {
 		// reset the values
 		this.instanceX = -1;
 		this.instanceY = -1;
@@ -482,6 +481,31 @@ public final class Site implements Serializable{
 		if (pinTemplate == null || !pinTemplate.isInput())
 			return null;
 		return new SitePin(this, pinTemplate);
+	}
+
+	/**
+	 * Creates and returns all sink pins on this site.
+	 * The SitePin objects are recreated upon each call.
+	 * @return all sink pins on this site
+	 */
+	public List<SitePin> getPins() {
+		return getPins(getTemplate());
+	}
+
+	/**
+	 * Creates and returns all sink pins on this site when configured as type.
+	 * The SitePin objects are recreated upon each call.
+	 * @return all sink pins on this site
+	 */
+	public List<SitePin> getPins(SiteType type) {
+		return getPins(getTemplate(type));
+	}
+
+	private List<SitePin> getPins(SiteTemplate template) {
+		List<SitePinTemplate> pinTemplates = template.getPinTemplates();
+		return pinTemplates.stream()
+			.map(it -> new SitePin(this, it))
+			.collect(Collectors.toList());
 	}
 
 	/**

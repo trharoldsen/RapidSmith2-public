@@ -6,21 +6,21 @@ import edu.byu.ece.rapidSmith.util.Exceptions;
 import java.util.*;
 
 public abstract class AbstractRouteTree<T extends AbstractRouteTree<T>> implements Iterable<T> {
-	private final Wire wire;
+	private final Node node;
 	private final Collection<T> children = new ArrayList<>(1);
 
-	protected AbstractRouteTree(Wire wire) {
-		this.wire = wire;
+	protected AbstractRouteTree(Node node) {
+		this.node = node;
 	}
 
 	/**
 	 * Returns a new instance of this class.  This method allows for the abstract class
 	 * to handle the implementation details of the class while preserving the generic
 	 * nature of the class.
-	 * @param wire the wire this node represents
+	 * @param node the node this node represents
 	 * @return a new node instance
 	 */
-	protected abstract T newInstance(Wire wire);
+	protected abstract T newInstance(Node node);
 
 	/**
 	 * Provides a method for a parent node to indicate to the child node that it has
@@ -28,7 +28,7 @@ public abstract class AbstractRouteTree<T extends AbstractRouteTree<T>> implemen
 	 * structures related to its location in the list.
 	 * <p/>
 	 * The default implementation does nothing.
-	 * @param c the connection between the parent and child wires
+	 * @param c the connection between the parent and child nodes
 	 * @param parent the new parent node of the child
 	 */
 	protected void connectToSource(Connection c, AbstractRouteTree<T> parent) { }
@@ -42,8 +42,8 @@ public abstract class AbstractRouteTree<T extends AbstractRouteTree<T>> implemen
 	 */
 	protected void disconnectFromSource() { }
 
-	public final Wire getWire() {
-		return wire;
+	public final Node getNode() {
+		return node;
 	}
 
 	public final Collection<T> getChildren() {
@@ -60,40 +60,40 @@ public abstract class AbstractRouteTree<T extends AbstractRouteTree<T>> implemen
 	}
 
 	/**
-	 * Returns the {@link SitePin} connected to the wire of the RouteTree. If no SitePin
+	 * Returns the {@link SitePin} connected to the node of the RouteTree. If no SitePin
 	 * object is connected, null is returned.
 	 */
 	public final SitePin getConnectedSitePin() {
-		return wire.getConnectedPin();
+		return node.getConnectedPin();
 	}
 
 	/**
-	 * Returns the {@link BelPin} connected to the wire of the RouteTree. If no BelPin
+	 * Returns the {@link BelPin} connected to the node of the RouteTree. If no BelPin
 	 * object is connected, null is returned.
 	 */
 	public final BelPin getConnectedBelPin() {
-		return wire.getTerminal();
+		return node.getTerminal();
 	}
 
 	/**
 	 * Creates and adds a new child node connected to this node through {@link Connection} c.
-	 * @param c the {@link Connection} connecting wires between this node and child.
+	 * @param c the {@link Connection} connecting nodes between this node and child.
 	 * @return the newly created child node
 	 */
 	@SuppressWarnings("unchecked")
 	public final <S extends T> S connect(Connection c) {
-		S i = (S) newInstance(c.getSinkWire());
+		S i = (S) newInstance(c.getSinkNode());
 		return connect(c, i);
 	}
 
 	/**
 	 * Connects an existing node to this node as a child through {@link Connection} c.
-	 * @param c the {@link Connection} connecting wires between this node and child.
+	 * @param c the {@link Connection} connecting nodes between this node and child.
 	 * @param child the new child node in this connection
 	 * @return @{code child}
 	 */
 	public final <S extends T> S connect(Connection c, S child) {
-		if (!c.getSinkWire().equals(child.getWire()))
+		if (!c.getSinkNode().equals(child.getNode()))
 			throw new Exceptions.DesignAssemblyException("Connection does not match sink tree");
 
 		children.add(child);
@@ -106,15 +106,15 @@ public abstract class AbstractRouteTree<T extends AbstractRouteTree<T>> implemen
 	 * no connection exists between this node and a child, this method returns without making
 	 * any changes.
 	 * <p/>
-	 * This method is implemented by removing the child node with the same wire returned
-	 * by {@link Connection#getSinkWire()} of c.
+	 * This method is implemented by removing the child node with the same node returned
+	 * by {@link Connection#getSinkNode()} of c.
 	 * @param c the connection to remove
 	 */
 	public final void disconnect(Connection c) {
-		Wire sinkWire = c.getSinkWire();
+		Node sinkNode = c.getSinkNode();
 		for (Iterator<T> it = children.iterator(); it.hasNext(); ) {
 			T sink = it.next();
-			if (sink.getWire().equals(sinkWire)) {
+			if (sink.getNode().equals(sinkNode)) {
 				sink.disconnectFromSource();
 				it.remove();
 			}
@@ -139,20 +139,20 @@ public abstract class AbstractRouteTree<T extends AbstractRouteTree<T>> implemen
 	}
 
 	/**
-	 * Disconnects this node from any child wrapping {@link Wire} {@code sink}.  If no
-	 * connections exist between this node and a child wrapping {@linkplain Wire}
+	 * Disconnects this node from any child wrapping {@link Node} {@code sink}.  If no
+	 * connections exist between this node and a child wrapping {@linkplain Node}
 	 * {@code sink}, this method
 	 * returns without making any changes.
 	 * <p/>
-	 * Though no two children with the same wire should exist a children of this node, this
+	 * Though no two children with the same node should exist a children of this node, this
 	 * method will still search the entire collection of children and remove any backed by
-	 * {@linkplain Wire} {@code sink}.
-	 * @param sink the wire of child nodes to remove.
+	 * {@linkplain Node} {@code sink}.
+	 * @param sink the node of child nodes to remove.
 	 */
-	public final void disconnect(Wire sink) {
+	public final void disconnect(Node sink) {
 		for (Iterator<T> it = children.iterator(); it.hasNext(); ) {
 			T child = it.next();
-			if (child.getWire().equals(sink)) {
+			if (child.getNode().equals(sink)) {
 				child.disconnectFromSource();
 				it.remove();
 			}
@@ -234,6 +234,6 @@ public abstract class AbstractRouteTree<T extends AbstractRouteTree<T>> implemen
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(wire);
+		return Objects.hash(node);
 	}
 }

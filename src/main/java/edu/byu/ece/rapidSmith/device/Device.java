@@ -20,10 +20,10 @@
 package edu.byu.ece.rapidSmith.device;
 
 import edu.byu.ece.rapidSmith.RSEnvironment;
-import edu.byu.ece.rapidSmith.primitiveDefs.PrimitiveDefList;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -64,7 +64,7 @@ public class Device implements Serializable {
 	/** Keeps track of which Wire objects have a corresponding PIPRouteThrough */
 	private Map<TileWireTemplate, Map<TileWireTemplate, PIPRouteThrough>> routeThroughMap;
 	/** Primitive defs in the device for reference */
-	private PrimitiveDefList primitiveDefs;
+	private Map<SiteType, SiteTemplate> siteTemplates;
 	private int numUniqueWireTypes;
 
 	//========================================================================//
@@ -413,31 +413,18 @@ public class Device implements Serializable {
 		Site site = this.getSite(packagePin.getSite());
 		return site == null ? null : site.getBel(packagePin.getBel());
 	}
-		
+
+	public Set<SiteType> getSupportedSiteTypes() {
+		return siteTemplates.keySet();
+	}
+
+	public SiteTemplate getTemplateOfSiteType(SiteType type) {
+		return siteTemplates.get(type);
+	}
+
 	//========================================================================//
 	// Object Population Methods
 	//========================================================================//
-	/**
-	 * Initializes the tile array and wire pool.  This is done after the tile dimensions have
-	 * been parsed from the .xdlrc file.  Also sets the number of rows and columns
-	 * of the device.
-	 *
-	 * @param rows number of rows in the device
-	 * @param columns number of columns in the device
-	 */
-	public void createTileArray(int rows, int columns) {
-		this.rows = rows;
-		this.columns = columns;
-		tiles = new Tile[rows][columns];
-		for (int i = 0; i < rows; i++) {
-			for (int j = 0; j < columns; j++) {
-				tiles[i][j] = new Tile();
-				tiles[i][j].setColumn(j);
-				tiles[i][j].setRow(i);
-				tiles[i][j].setDevice(this);
-			}
-		}
-	}
 
 	public void setTileArray(Tile[][] tiles) {
 		this.tiles = tiles;
@@ -489,7 +476,6 @@ public class Device implements Serializable {
 		private Tile[][] tiles;
 		private Map<TileWireTemplate, Map<TileWireTemplate, PIPRouteThrough>> routeThroughMap;
 		private Collection<SiteTemplate> siteTemplates;
-		private PrimitiveDefList primitiveDefs;
 		private Map<String, PackagePin> packagePinMap;
 		private Integer numUniqueWireTypes;
 
@@ -507,7 +493,8 @@ public class Device implements Serializable {
 				}
 			}
 			device.routeThroughMap = routeThroughMap;
-			device.primitiveDefs = primitiveDefs;
+			device.siteTemplates = siteTemplates.stream()
+				.collect(Collectors.toMap(SiteTemplate::getType, st -> st, (a, b) -> b));
 			device.numUniqueWireTypes = (numUniqueWireTypes != null) ? numUniqueWireTypes : -1;
 
 			device.constructTileMap();
@@ -537,7 +524,7 @@ public class Device implements Serializable {
 		repl.family = family;
 		repl.tiles = tiles;
 		repl.routeThroughMap = routeThroughMap;
-		repl.primitiveDefs = primitiveDefs;
+		repl.siteTemplates = siteTemplates.values();
 		repl.packagePinMap = packagePinMap;
 		repl.numUniqueWireTypes = numUniqueWireTypes;
 	}

@@ -3,13 +3,10 @@ package edu.byu.ece.rapidSmith.examples;
 import java.io.IOException;
 import java.util.Collection;
 
+import edu.byu.ece.rapidSmith.device.*;
 import org.jdom2.JDOMException;
 
 import edu.byu.ece.rapidSmith.RSEnvironment;
-import edu.byu.ece.rapidSmith.device.Connection;
-import edu.byu.ece.rapidSmith.device.Device;
-import edu.byu.ece.rapidSmith.device.Tile;
-import edu.byu.ece.rapidSmith.device.Wire;
 
 public class DeviceAnalyzer {
 	
@@ -39,52 +36,17 @@ public class DeviceAnalyzer {
 		
 		// Build each wire and print its statistics
 		Collection<Wire> wires = t.getWires();
-		msg("There are " + wires.size() + " wires in this tile...");
-		for (Wire tw : wires) {
-			printWire(tw);
+		Collection<Node> nodes = t.getNodes();
+		msg("There are " + wires.size() + " wires representing " + nodes.size() + " in this tile...");
+		Collection<PIP> pips = t.getPIPs();
+		msg("There are " + pips.size() + " in this tile...");
+		for (PIP pip : pips) {
+			msg("  " + pip.getStartWire() + " -> " + pip.getEndWire());
 		}
 		
 		msg("Done...");
 	}
-	
-	private static void printWire(Wire w) {
-		Tile t = w.getTile();
-		msg("Wire " + w.getFullName() + " has " + w.getWireConnections().size() + " connections.");
 
-		/*
-		 * A wire has a number of connections to other wires. 
-		 * 
-		 * These are essentially of two types. The first is a programmable 
-		 * connection, also known as a PIP. The other is a non-programmable
-		 * connection and essentially is the name of the other end of the
-		 * wire (that is, each end of a wire typically has a different
-		 * name).
-		 * 
-		 * For many wires, the other end of the connection is in the same
-		 * tile. For others, it is in a different tile.
-		 * 
-		 * The following code will print out the various wire connections,
-		 * marking whether they are PIPs or not. Additionally, if the other
-		 * end of the connection is in a different tile, it will print the
-		 * offset as well.
-		 *  
-		 */ 
-		for (Connection c : w.getWireConnections()) {	 
-			String s;
-			if (c.getSinkWire().getTile() != t) {	 
-				int xoff = c.getSinkWire().getTile().getColumn() - t.getColumn() ;	 
-				int yoff = c.getSinkWire().getTile().getRow() - t.getRow() ;	 
-				s = c.getSinkWire().getTile().toString() + "/" + c.getSinkWire().getName() + " [" + yoff + "," + xoff + "]";
-			}	
-			else	 
-				s = c.getSinkWire().getName();
-			if (c.isPip())	
-				msg("  [PIP] " + s);	 
-			else
-				msg("  [nonPIP] " + s);	
-		}
-	}	
-	
 	private static void msg(String s) {
 		System.out.println(s);
 	}

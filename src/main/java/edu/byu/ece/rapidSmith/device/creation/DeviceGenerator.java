@@ -73,12 +73,12 @@ public final class DeviceGenerator {
 
 	private HashMap<String, TileWireTemplate> tileWireTemplates;
 	private HashMap<String, SiteWireTemplate> siteWireTemplates;
+	private HashMap<TileWire, TileNodeTemplate> nodesMap;
 	private int numUniqueWireTypes;
 
 	/** Keeps track of each unique object in the device */
-	private HashPool<WireConnection<TileWireTemplate>> tileConnPool;
-	private HashPool<ArraySet<WireConnection<TileWireTemplate>>> tileConnSetPool;
-	private HashPool<WireHashMap<TileWireTemplate>> tileWireMapPool;
+	private HashPool<TileNodeConnection> tileConnPool;
+	private HashPool<ArraySet<TileNodeConnection>> tileConnSetPool;
 
 	private HashPool<PIPRouteThrough> routeThroughPool;
 	private HashPool<Map<String, TileWireTemplate>> externalWiresPool;
@@ -121,7 +121,8 @@ public final class DeviceGenerator {
 		parser.registerListener(new FamilyTypeListener());
 		parser.registerListener(new WireTemplateListener());
 		parser.registerListener(new TileAndSiteGeneratorListener());
-		parser.registerListener(new PrimitiveDefsListener());
+		PrimitiveDefsListener primitiveDefsListener = new PrimitiveDefsListener();
+		parser.registerListener(primitiveDefsListener);
 		parser.registerListener(new XDLRCParseProgressListener());
 		try {
 			parser.parse(xdlrcPath);
@@ -131,8 +132,8 @@ public final class DeviceGenerator {
 		parser.clearListeners();
 
 		device.constructTileMap();
-		PrimitiveDefsCorrector.makeCorrections(device.getPrimitiveDefs(), familyInfo);
-		device.setSiteTemplates(createSiteTemplates());
+		PrimitiveDefsCorrector.makeCorrections(primitiveDefsListener.defs, familyInfo);
+		device.setSiteTemplates(createSiteTemplates(primitiveDefsListener.defs));
 
 		System.out.println("Starting second pass");
 		HashMap<Tile, WireHashMap<TileWireTemplate>> forwardWireMaps = new HashMap<>();
@@ -185,12 +186,12 @@ public final class DeviceGenerator {
 	 * Creates the templates for the primitive sites with information from the
 	 * primitive defs and device information file.
 	 */
-	private Map<SiteType, SiteTemplate> createSiteTemplates() {
-		Map<SiteType, SiteTemplate> siteTemplates = new HashMap<>();
+	private List<SiteTemplate> createSiteTemplates(PrimitiveDefList defs) {
+		List<SiteTemplate> siteTemplates = new HashMap<>();
 		FamilyType family = device.getFamily();
 
 		// Create a template for each primitive type
-		for (PrimitiveDef def : device.getPrimitiveDefs()) {
+		for (PrimitiveDef def : defs) {
 			Element ptEl = getSiteTypeEl(def.getType());
 
 			SiteTemplate template = new SiteTemplate();
@@ -210,7 +211,7 @@ public final class DeviceGenerator {
 
 			template.setReverseWireConnections(getReverseMapForSite(template));
 
-			siteTemplates.put(def.getType(), template);
+			siteTemplates.add(template);
 		}
 
 		return siteTemplates;
@@ -247,8 +248,8 @@ public final class DeviceGenerator {
 	 * @param ptElement XML element detailing the primitive type
 	 * @return The templates for each BEL in the primitive type
 	 */
-	private Map<String, BelTemplate> createBelTemplates(PrimitiveDef def, Element ptElement) {
-		Map<String, BelTemplate> templates = new HashMap<>();
+	private List<BelTemplate> createBelTemplates(PrimitiveDef def, Element ptElement) {
+		List<BelTemplate> templates = new ArrayList<>();
 
 		// for each BEL element
 		for (PrimitiveElement el : def.getElements()) {
@@ -262,21 +263,16 @@ public final class DeviceGenerator {
 			BelTemplate template = new BelTemplate(id, belType);
 
 			// Create the BEL pin templates
-			Map<String, BelPinTemplate> sinks = new HashMap<>();
-			Map<String, BelPinTemplate> sources = new HashMap<>();
+			List<BelPinTemplate> pinTemplates = new ArrayList<>();
 			for (PrimitiveDefPin pin : el.getPins()) {
 				BelPinTemplate belPin = new BelPinTemplate(id, pin.getInternalName());
 				belPin.setDirection(pin.getDirection());
 				String wireName = getIntrasiteWireName(def.getType(), el.getName(), belPin.getName());
 				belPin.setWire(siteWireTemplates.get(wireName));
-				if (pin.getDirection() == PinDirection.IN || pin.getDirection() == PinDirection.INOUT)
-					sinks.put(belPin.getName(), belPin);
-				if (pin.getDirection() == PinDirection.OUT || pin.getDirection() == PinDirection.INOUT)
-					sources.put(belPin.getName(), belPin);
+				pinTemplates.add(belPin);
 			}
-			template.setSources(sources);
-			template.setSinks(sinks);
-			templates.put(el.getName(), template);
+			template.setPinTemplates(pinTemplates);
+			templates.add(template);
 		}
 
 		// Find the site pins that connect to each BEL pin by traversing the routing.
@@ -301,7 +297,7 @@ public final class DeviceGenerator {
 	 * @param sitePin   Site pin we're searching from
 	 * @param element   The current element we're looking at
 	 */
-	private void findAndSetSitePins(Map<String, BelTemplate> templates, PrimitiveDef def,
+	private void findAndSetSitePins(List<BelTemplate> templates, PrimitiveDef def,
 	                                boolean forward, String sitePin, PrimitiveElement element) {
 
 		// follow each connection from the element
@@ -950,6 +946,7 @@ public final class DeviceGenerator {
 				} 
 			}
 
+			i = 0;
 			for (Map.Entry<String, SiteType> e : siteWireMap.entrySet()) {
 				SiteWireTemplate template = new SiteWireTemplate(e.getKey(), e.getValue(), i++);
 				siteWireTemplates.put(e.getKey(), template);
@@ -1244,7 +1241,7 @@ public final class DeviceGenerator {
 			for (int i = 1; i < alternativeTypes.size(); i++) {
 				Map<String, TileWireTemplate> altExternalPinWires = new HashMap<>();
 				SiteType altType = alternativeTypes.get(i);
-				SiteTemplate site = device.getSiteTemplate(altType);
+				SiteTemplate site = device.getTemplateOfSiteType(altType);
 				for (String sitePin : site.getSources().keySet()) {
 					TileWireTemplate wire = getExternalWireForSitePin(altType, sitePin);
 					altExternalPinWires.put(sitePin, wire);

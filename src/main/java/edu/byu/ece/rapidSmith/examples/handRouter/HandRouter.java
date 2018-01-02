@@ -3,6 +3,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Scanner;
 
+import edu.byu.ece.rapidSmith.device.Node;
 import edu.byu.ece.rapidSmith.device.Wire;
 import edu.byu.ece.rapidSmith.design.subsite.RouteTree;
 import edu.byu.ece.rapidSmith.device.Connection;
@@ -37,7 +38,7 @@ public class HandRouter {
 		Objects.requireNonNull(wire);
 
 		in = new Scanner(System.in);		
-		RouteTree start = new RouteTree(wire);
+		RouteTree start = new RouteTree(wire.getNode());
 		handRoute(start);
 		in.close();
 		
@@ -53,7 +54,7 @@ public class HandRouter {
 		
 		while(!done) {
 			
-			printDownhillConnections(route.getWire());
+			printDownhillConnections(route.getNode());
 			System.out.print("  >>>");
 							
 			if (in.hasNextInt()) {
@@ -78,7 +79,7 @@ public class HandRouter {
 				case "u": printCommands(); 
 					break;
 				default:
-					System.out.println("Invalid Option! Enter back(b), done(d), save(s), restore(r), usage(u), or 1-" + route.getWire().getWireConnections().size()); 
+					System.out.println("Invalid Option! Enter back(b), done(d), save(s), restore(r), usage(u), or 1-" + route.getNode().getWireConnections().size());
 					break;
 			}
 		}
@@ -148,7 +149,7 @@ public class HandRouter {
 	 */
 	private RouteTree followConnection(RouteTree current, int connectionNum) {
 		
-		List<Connection> connections = (List<Connection>)current.getWire().getWireConnections();
+		List<Connection> connections = (List<Connection>)current.getNode().getWireConnections();
 		
 		if (connectionNum < 1 || connectionNum > connections.size() ) {
 			return current;
@@ -166,15 +167,15 @@ public class HandRouter {
 	 * Prints all available connections to the user in the form 
 	 * {@code 1.) CLBLL_L_X16Y152/CLBLL_LOGIC_OUTS18 (PIP) }, where "PIP" is
 	 * only displayed if the wire connection is a PIP connection
-	 * @param wire {@link Wire} object to print the connections for
+	 * @param node {@link Wire} object to print the connections for
 	 */
-	private void printDownhillConnections ( Wire wire ) {
-		System.out.println("All connections for wire: " + wire.getFullName());
+	private void printDownhillConnections ( Node node ) {
+		System.out.println("All connections for wire: " + node);
 		int i = 1;
 		
-		for (Connection conn : wire.getWireConnections()) {
+		for (Connection conn : node.getWireConnections()) {
 			Wire sinkWire = conn.getSinkWire();
-			System.out.println(String.format("  %d.) %s %s", i, sinkWire.getFullName(), conn.isPip() ?"(PIP)" : ""));
+			System.out.println(String.format("  %d.) %s", i, sinkWire.getFullName()));
 			i++;
 		}
 	}

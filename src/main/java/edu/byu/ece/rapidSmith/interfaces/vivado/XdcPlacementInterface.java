@@ -159,9 +159,9 @@ public class XdcPlacementInterface {
 		design.placeCell(cell, bel);
 		
 		assert (cell.getPins().size() == 1) : "PAD cell should only have one pin";
-		assert (bel.getBelPins().count() == 1) : "PAD BEL " + site.getName() + "/" + bel.getName() + " should only have one pin. but has " + bel.getBelPins().count();
+		assert (bel.getBelPins().size() == 1) : "PAD BEL " + site.getName() + "/" + bel.getName() + " should only have one pin. but has " + bel.getBelPins().size();
 		
-		BelPin belPin = bel.getBelPins().findFirst().get();
+		BelPin belPin = bel.getBelPins().iterator().next();
 		CellPin cellPin = cell.getPins().iterator().next();
 		
 		cellPin.mapToBelPin(belPin);
@@ -371,10 +371,6 @@ public class XdcPlacementInterface {
 	 * TODO: Add <is_lut>, <is_carry>, and <is_ff> tags to cell library
 	 */
 	private Stream<Cell> sortCellsForXdcExport(CellDesign design) {
-		
-		design.getDevice().getAllSitesOfType(SiteType.valueOf(design.getFamily(), "SLICEL"));
-		
-		
 		// cell bins
 		ArrayList<Cell> sorted = new ArrayList<>(design.getCells().size());		
 		ArrayList<Cell> lutCellsH = new ArrayList<>();
